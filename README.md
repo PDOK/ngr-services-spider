@@ -25,3 +25,11 @@ positional arguments:
 options:
   -h, --help  show this help message and exit
 ```
+
+## Examples
+
+1. To generate a list of layers per service per dataset run the following:
+
+```sh
+ngr-spider layers -p OGC:WMS,OGC:WMTS -m datasets pdok-services.json
+```
