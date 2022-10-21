@@ -10,20 +10,19 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import nullcontext
 from types import MethodType
 from urllib import parse
-from urllib.parse import parse_qs, urlparse
 
 import requests
-from lxml import etree
 from owslib.csw import CatalogueServiceWeb
 from owslib.wcs import WebCoverageService, wcs110
 from owslib.wfs import WebFeatureService
 from owslib.wms import WebMapService
 from owslib.wmts import WebMapTileService
 
+from .servicemetadata import ServiceMetadata
+
 CSW_URL = "https://nationaalgeoregister.nl/geonetwork/srv/dut/csw"
 LOG_LEVEL = "INFO"
 PROTOCOLS = ["OGC:WMS", "OGC:WFS", "OGC:WMTS", "OGC:WCS"]
-
 
 SORTING_RULES = {
     0: {"names": ["opentopo+"], "types": ["wmts"]},
@@ -54,95 +53,7 @@ logging.basicConfig(
 )
 
 
-class ServiceMetadata:
 
-    ns = {
-        "csw": "http://www.opengis.net/cat/csw/2.0.2",
-        "gmd": "http://www.isotc211.org/2005/gmd",
-        "dc": "http://purl.org/dc/elements/1.1/",
-        "dct": "http://purl.org/dc/terms/",
-        "srv":"http://www.isotc211.org/2005/srv",
-        "xsi":"http://www.w3.org/2001/XMLSchema-instance",
-        "gmx":"http://www.isotc211.org/2005/gmx",
-        "gco":"http://www.isotc211.org/2005/gco",
-        "xlink":"http://www.w3.org/1999/xlink",
-    }
-    xpath_sv_service_identification=".//gmd:identificationInfo/srv:SV_ServiceIdentification"
-
-    def get_record_identifier(self):
-        xpath_query= f".//gmd:fileIdentifier/gco:CharacterString/text()"
-        return self.get_text_xpath(xpath_query)
-
-    def get_use_limitation(self):
-        xpath_query= f"{self.xpath_sv_service_identification}/gmd:resourceConstraints/gmd:MD_Constraints/gmd:useLimitation/gco:CharacterString/text()"
-        return self.get_text_xpath(xpath_query)
-
-    def get_service_url(self):
-        result=""
-        return result
-    
-    def get_service_protocol(self):
-        result=""
-        return result
-    
-    def get_text_xpath(self, xpath_query):
-        try:
-            return self.root.xpath(xpath_query, namespaces=self.ns)[0]
-        except IndexError:            
-            return ""
-        
-
-    def get_title(self):
-        xpath_query= f"{self.xpath_sv_service_identification}/gmd:citation/gmd:CI_Citation/gmd:title/gco:CharacterString/text()"
-        return self.get_text_xpath(xpath_query)
-        
-    def get_abstract(self):
-        xpath_query= f"{self.xpath_sv_service_identification}/gmd:abstract/gco:CharacterString/text()"
-        return self.get_text_xpath(xpath_query)
-    
-    def get_point_of_contact(self):
-        return {}
-
-    def get_keywords(self):
-        xpath_query= f"{self.xpath_sv_service_identification}/gmd:descriptiveKeywords/gmd:MD_Keywords"
-        md_keywords = self.root.xpath(xpath_query, namespaces=self.ns)
-        keywords_result = {}
-        for md_keyword in md_keywords:
-            print(md_keyword)
-            keywords_els = md_keyword.xpath('./gmd:keyword',  namespaces=self.ns)
-            for keyword_el in keywords_els:
-                try:
-                    keyword_val = keyword_el.xpath('./gco:CharacterString/text()', namespaces=self.ns)[0]
-                    if "" not in keywords_result:
-                        keywords_result[""] = []
-                    keywords_result[""].append(keyword_val)
-                        
-                except IndexError:
-                    keyword_val = keyword_el.xpath('./gmx:Anchor/text()', namespaces=self.ns)[0]
-                    keyword_ns =  keyword_el.xpath('./gmx:Anchor/@xlink:href', namespaces=self.ns)[0]
-                    if keyword_ns not in keywords_result:
-                        keywords_result[keyword_ns] = []
-                    keywords_result[keyword_ns].append(keyword_val)
-        return keywords_result    
-
-    def get_operates_on(self):
-        return self.get_text_xpath(f"{self.xpath_sv_service_identification}/srv:operatesOn/@xlink:href")
-        
-
-    def __init__(self, xml):
-        parser = etree.XMLParser(ns_clean=True, recover=True, encoding='utf-8')
-        self.root = etree.fromstring(xml, parser=parser)
-        self.title = self.get_title()
-        self.abstract = self.get_abstract()
-        self.use_limitation = self.get_use_limitation()
-        self.record_identifier = self.get_record_identifier()
-        self.point_of_contact = self.get_point_of_contact()
-        self.keywords = self.get_keywords()
-        self.operates_on = self.get_operates_on()
-        # self.service_url = self.get_service_url()
-        # self.service_protocol = self.get_service_protocol()
-
-        
 
 def get_sorting_value(layer_info):
     if not "name" in layer_info:
@@ -184,7 +95,7 @@ def get_csw_results(query, maxresults=0):
 
     while True:
         csw.getrecords2(maxrecords=maxrecord, cql=query, startposition=start)
-        result = [{"md_id": rec} for rec in csw.records]
+        result = [{"metadata_id": rec} for rec in csw.records]
         md_ids.extend(result)
         if (
             maxresults != 0 and len(result) >= maxresults
@@ -223,67 +134,66 @@ def get_identifier_from_getrecordbyid_url(self, url):
     url = url.lower()
 
 
-def get_protocol_by_ur(url):
-    for prot in PROTOCOLS:
-        # pattern looks like this: '.*\/wms(:?\/|\?).*'
-        pattern = re.compile(f'.*\/{prot.split(":")[1].lower()}(:?\/|\?).*')
-        m = pattern.match(url)
-        if m:
-            return prot
-    return ""
+# def get_protocol_by_ur(url):
+#     for prot in PROTOCOLS:
+#         # pattern looks like this: '.*\/wms(:?\/|\?).*'
+#         pattern = re.compile(f'.*\/{prot.split(":")[1].lower()}(:?\/|\?).*')
+#         m = pattern.match(url)
+#         if m:
+#             return prot
+#     return ""
 
-
-def get_service_information(input: "dict[str, str]") -> "dict[str, str]":
-    """Retrieve service metadata record for input["md_id"] en return title, protocol en service url
-
-    Args:
-        input (dict): dict containing "md_id" key and optional "protocol"
-
-    Returns:
-        dict: dict with "md_id", "url" and "title" keys
-    """
-    # TODO: refactor to take arguments instead of dict
-    md_id = input["md_id"]
+def get_dataset_metadata(md_id: "str") -> "dict[str, str]":
+    
     csw = CatalogueServiceWeb(CSW_URL)
     csw.getrecordbyid(id=[md_id], outputschema="http://www.isotc211.org/2005/gmd")
-        
     record = csw.records[md_id]
+    result = {
+        "title": record.identification.title,
+        "abstract": record.identification.abstract,
+        "metadata_id": md_id}
+    return result
+    
 
-    sm = ServiceMetadata(record.xml)
+def get_service_information(input: "dict[str, str]") -> "dict[str, str]":
+    """Retrieve service metadata record for input["metadata_id"] en return title, protocol en service url
 
-    uris = record.uris
-    service_url = ""
-    title = record.title
-    print(record.xml)
-    if len(uris) > 0:
-        service_url = uris[0]["url"]
-        service_url = service_url.partition("?")[0]
-        if (
-            "protocol" not in input
-        ):  # TODO: improve code to extract protocol from retrieved md record
-            protocol = get_protocol_by_ur(uris[0]["url"])
-            input["protocol"] = protocol
-        else:
-            protocol = input["protocol"]
+    Args:
+        input (dict): dict containing "metadata_id" key and optional "protocol"
 
-        query_param_svc_type = protocol.split(":")[1]
-        if (
-            "https://geodata.nationaalgeoregister.nl/tiles/service/wmts" in service_url
-        ):  # shorten paths, some wmts services have redundant path elements in service_url
-            service_url = "https://geodata.nationaalgeoregister.nl/tiles/service/wmts"
-        if service_url.endswith(
-            "/WMTSCapabilities.xml"
-        ):  # handle cases for restful wmts url, assume kvp variant is supported
-            service_url = service_url.replace("/WMTSCapabilities.xml", "")
-        service_url = (
-            f"{service_url}?request=GetCapabilities&service={query_param_svc_type}"
-        )
+    Returns:
+        dict: dict with "metadata_id", "url" and "title" keys
+    """
+    # TODO: refactor to take arguments instead of dict
+    md_id = input["metadata_id"]
+    csw = CatalogueServiceWeb(CSW_URL)
+    csw.getrecordbyid(id=[md_id], outputschema="http://www.isotc211.org/2005/gmd")
+    record = csw.records[md_id]
+    service_metadata = ServiceMetadata(record.xml)    
+    service_url = service_metadata.service_url
+    service_url = service_url.partition("?")[0
+    ]
+    if (
+        "protocol" not in input
+    ):  # TODO: improve code to extract protocol from retrieved md record
+        protocol = service_metadata.service_protocol
+        input["protocol"] = protocol
     else:
-        error_message = (
-            f"expected at least 1 service url in service record {md_id}, found 0"
-        )
-        logging.error(error_message)
-    return {"md_id": md_id, "url": service_url, "title": title}
+        protocol = input["protocol"]
+
+    query_param_svc_type = protocol.split(":")[1]
+    if (
+        "https://geodata.nationaalgeoregister.nl/tiles/service/wmts" in service_url
+    ):  # shorten paths, some wmts services have redundant path elements in service_url
+        service_url = "https://geodata.nationaalgeoregister.nl/tiles/service/wmts"
+    if service_url.endswith(
+        "/WMTSCapabilities.xml"
+    ):  # handle cases for restful wmts url, assume kvp variant is supported
+        service_url = service_url.replace("/WMTSCapabilities.xml", "")
+    service_url = (
+        f"{service_url}?request=GetCapabilities&service={query_param_svc_type}"
+    )
+    return {"metadata_id": md_id, "url": service_url, "title": service_metadata.title, "abstract": service_metadata.abstract, "dataset_metadata_id": service_metadata.dataset_record_identifier}
 
 
 async def get_data_asynchronous(results, fun):
@@ -332,7 +242,7 @@ def get_wcs_cap(result):
 
     try:
         url = result["url"]
-        md_id = result["md_id"]
+        md_id = result["metadata_id"]
         logging.info(f"{md_id} - {url}")
         # monkeypatch OWS method to fix namespace issue
         # owslib is using a different namespace url than mapserver is in cap doc
@@ -373,7 +283,7 @@ def get_wfs_cap(result):
 
     try:
         url = result["url"]
-        md_id = result["md_id"]
+        md_id = result["metadata_id"]
         logging.info(f"{md_id} - {url}")
         wfs = WebFeatureService(url, version="2.0.0")
         keywords = wfs.identification.keywords
@@ -445,7 +355,7 @@ def get_wms_cap(result):
         if "://secure" in url:
             # this is a secure layer not for the general public: ignore
             return result
-        md_id = result["md_id"]
+        md_id = result["metadata_id"]
         logging.info(f"{md_id} - {url}")
         wms = WebMapService(url, version="1.3.0")
         keywords = wms.identification.keywords
@@ -477,7 +387,7 @@ def get_wmts_cap(result):
 
     try:
         url = result["url"]
-        md_id = result["md_id"]
+        md_id = result["metadata_id"]
         logging.info(f"{md_id} - {url}")
         if "://secure" in url:
             # this is a secure layer not for the general public: ignore
@@ -504,7 +414,7 @@ def flatten_service(service):
         layer["service_title"] = service["title"]
         layer["service_type"] = service["protocol"].split(":")[1].lower()
         layer["service_abstract"] = service["abstract"]
-        layer["service_md_id"] = service["md_id"]
+        layer["service_md_id"] = service["metadata_id"]
         return layer
 
     def flatten_layer_wcs(layer):
@@ -512,7 +422,7 @@ def flatten_service(service):
         layer["service_title"] = service["title"]
         layer["service_type"] = service["protocol"].split(":")[1].lower()
         layer["service_abstract"] = service["abstract"] if (not None) else ""
-        layer["service_md_id"] = service["md_id"]
+        layer["service_md_id"] = service["metadata_id"]
         return layer
 
     def flatten_layer_wfs(layer):
@@ -520,7 +430,7 @@ def flatten_service(service):
         layer["service_title"] = service["title"]
         layer["service_type"] = service["protocol"].split(":")[1].lower()
         layer["service_abstract"] = service["abstract"] if (not None) else ""
-        layer["service_md_id"] = service["md_id"]
+        layer["service_md_id"] = service["metadata_id"]
         return layer
 
     def flatten_layer_wmts(layer):
@@ -528,7 +438,7 @@ def flatten_service(service):
         layer["service_url"] = service["url"]
         layer["service_type"] = service["protocol"].split(":")[1].lower()
         layer["service_abstract"] = service["abstract"] if (not None) else ""
-        layer["service_md_id"] = service["md_id"]
+        layer["service_md_id"] = service["metadata_id"]
         return layer
 
     def flatten_layer(layer):
@@ -564,6 +474,7 @@ def main_services(args):
     output_file = args.output_file
     number_records = args.number
     pretty = args.pretty
+    retrieve_dataset_metadata = args.dataset_md
     protocols = args.protocols
     show_warnings = args.show_warnings
     if not show_warnings:
@@ -592,19 +503,34 @@ def main_services(args):
         )
         loop.run_until_complete(future)
         get_record_results = join_lists_by_property(
-            csw_results, future.result(), "md_id"
+            csw_results, future.result(), "metadata_id"
         )
-
         filtered_record_results = filter_get_records_responses(get_record_results)
-
         sorted_results = sorted(filtered_record_results, key=lambda x: x["title"])
 
-        nr_services = len(sorted_results)
-        logging.info(f"indexed {nr_services} services")
+        if retrieve_dataset_metadata:
+            datasetIds = list(set([x["dataset_metadata_id"] for x in sorted_results]))
+            loop = asyncio.get_event_loop()
+            future = asyncio.ensure_future(
+                get_data_asynchronous(datasetIds, get_dataset_metadata)
+            )
+            loop.run_until_complete(future)
+            dataset_records = future.result()
+            sorted_results = {"datasets": [{**x, 'services': [y for y in sorted_results if y["dataset_metadata_id"] == x["metadata_id"]]   } for x in dataset_records]}
 
-        for prot in protocol_list:
-            nr_services_prot = len([x for x in sorted_results if x["protocol"] == prot])
-            logging.info(f"indexed {prot} {nr_services_prot} services")
+            for ds in sorted_results["datasets"]:
+                for svc in ds["services"]:
+                    del svc["dataset_metadata_id"]
+                
+        
+            
+
+        # nr_services = len(sorted_results)
+        # logging.info(f"indexed {nr_services} services")
+
+        # for prot in protocol_list:
+        #     nr_services_prot = len([x for x in sorted_results if x["protocol"] == prot])
+        #     logging.info(f"indexed {prot} {nr_services_prot} services")
 
         with open(output_file, "w") as f:
             indent = None
@@ -665,7 +591,7 @@ def main_layers(args):
         )
         loop.run_until_complete(future)
         get_record_results = join_lists_by_property(
-            csw_results, future.result(), "md_id"
+            csw_results, future.result(), "metadata_id"
         )
 
         get_record_results_filtered = filter_get_records_responses(get_record_results)
@@ -757,9 +683,16 @@ def main():
     services_parser = subparsers.add_parser(
         "services", parents=[parent_parser], help="Generate list of all PDOK services"
     )
+    services_parser.add_argument(
+        "--dataset-md",
+        action="store_true",
+        help="group services by dataset and retrieve dataset metadata",
+    )
+
     layers_parser = subparsers.add_parser(
         "layers", parents=[parent_parser], help="Generate list of all PDOK layers"
     )
+    
 
     layers_parser.add_argument(
         "-i",
