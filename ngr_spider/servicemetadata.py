@@ -1,5 +1,6 @@
 from lxml import etree
 from urllib.parse import parse_qs, urlparse
+import logging
 
 class ServiceMetadata:
 
@@ -65,11 +66,15 @@ class ServiceMetadata:
                     keywords_result[""].append(keyword_val)
                         
                 except IndexError:
-                    keyword_val = keyword_el.xpath('./gmx:Anchor/text()', namespaces=self.ns)[0]
-                    keyword_ns =  keyword_el.xpath('./gmx:Anchor/@xlink:href', namespaces=self.ns)[0]
-                    if keyword_ns not in keywords_result:
-                        keywords_result[keyword_ns] = []
-                    keywords_result[keyword_ns].append(keyword_val)
+                    try:
+                        keyword_val = keyword_el.xpath('./gmx:Anchor/text()', namespaces=self.ns)[0]
+                        keyword_ns =  keyword_el.xpath('./gmx:Anchor/@xlink:href', namespaces=self.ns)[0]
+                        if keyword_ns not in keywords_result:
+                            keywords_result[keyword_ns] = []
+                        keywords_result[keyword_ns].append(keyword_val)
+                    except IndexError:
+                        logging.error(f"unexpected error while retrieving keyword for record {self.record_identifier}")
+                    
         return keywords_result    
 
     def get_operates_on(self):
@@ -77,7 +82,10 @@ class ServiceMetadata:
     
     def get_dataset_record_identifier(self, operates_on_url):
         parsed_url = urlparse(operates_on_url.lower())
-        return parse_qs(parsed_url.query)['id'][0]
+        try:
+            return parse_qs(parsed_url.query)['id'][0]
+        except IndexError:
+            return ""
 
     def get_service_url(self):
         xpath_query= f"{self.xpath_ci_resource}/gmd:linkage/gmd:URL/text()"
@@ -95,10 +103,10 @@ class ServiceMetadata:
     def __init__(self, xml):
         parser = etree.XMLParser(ns_clean=True, recover=True, encoding='utf-8')
         self.root = etree.fromstring(xml, parser=parser)
+        self.record_identifier = self.get_record_identifier()
         self.title = self.get_title()
         self.abstract = self.get_abstract()
         self.use_limitation = self.get_use_limitation()
-        self.record_identifier = self.get_record_identifier()
         self.point_of_contact = self.get_point_of_contact()
         self.keywords = self.get_keywords()
         self.operates_on = self.get_operates_on()

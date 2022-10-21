@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import asyncio
+import enum
 import itertools
 import json
 import logging
@@ -108,7 +109,7 @@ def get_csw_results(query, maxresults=0):
     return md_ids
 
 
-def get_csw_results_by_id(id):
+def get_csw_results_by_id(id: str):
     query = f"identifier='{id}'"
     md_ids = get_csw_results(query)
     return md_ids
@@ -147,12 +148,15 @@ def get_dataset_metadata(md_id: "str") -> "dict[str, str]":
     
     csw = CatalogueServiceWeb(CSW_URL)
     csw.getrecordbyid(id=[md_id], outputschema="http://www.isotc211.org/2005/gmd")
-    record = csw.records[md_id]
-    result = {
-        "title": record.identification.title,
-        "abstract": record.identification.abstract,
-        "metadata_id": md_id}
-    return result
+    try:
+        record = csw.records[md_id]
+        result = {
+            "title": record.identification.title,
+            "abstract": record.identification.abstract,
+            "metadata_id": md_id}
+        return result
+    except KeyError: # TODO: log missing dataset records
+        return {}
     
 
 def get_service_information(input: "dict[str, str]") -> "dict[str, str]":
@@ -414,7 +418,8 @@ def flatten_service(service):
         layer["service_title"] = service["title"]
         layer["service_type"] = service["protocol"].split(":")[1].lower()
         layer["service_abstract"] = service["abstract"]
-        layer["service_md_id"] = service["metadata_id"]
+        layer["service_metadata_id"] = service["metadata_id"]
+        layer["dataset_metadata_id"]= service["dataset_metadata_id"]
         return layer
 
     def flatten_layer_wcs(layer):
@@ -422,7 +427,9 @@ def flatten_service(service):
         layer["service_title"] = service["title"]
         layer["service_type"] = service["protocol"].split(":")[1].lower()
         layer["service_abstract"] = service["abstract"] if (not None) else ""
-        layer["service_md_id"] = service["metadata_id"]
+        layer["service_metadata_id"] = service["metadata_id"]
+        layer["dataset_metadata_id"]= service["dataset_metadata_id"]
+
         return layer
 
     def flatten_layer_wfs(layer):
@@ -430,7 +437,8 @@ def flatten_service(service):
         layer["service_title"] = service["title"]
         layer["service_type"] = service["protocol"].split(":")[1].lower()
         layer["service_abstract"] = service["abstract"] if (not None) else ""
-        layer["service_md_id"] = service["metadata_id"]
+        layer["service_metadata_id"] = service["metadata_id"]
+        layer["dataset_metadata_id"]= service["dataset_metadata_id"]
         return layer
 
     def flatten_layer_wmts(layer):
@@ -438,7 +446,8 @@ def flatten_service(service):
         layer["service_url"] = service["url"]
         layer["service_type"] = service["protocol"].split(":")[1].lower()
         layer["service_abstract"] = service["abstract"] if (not None) else ""
-        layer["service_md_id"] = service["metadata_id"]
+        layer["service_metadata_id"] = service["metadata_id"]
+        layer["dataset_metadata_id"]= service["dataset_metadata_id"]
         return layer
 
     def flatten_layer(layer):
@@ -454,7 +463,7 @@ def flatten_service(service):
     return result
 
 
-def sort_service_layers(layers):
+def sort_flat_layers(layers):
     sorted_layer_dict = {}
     for layer in layers:
         sorting_value = get_sorting_value(layer)
@@ -469,6 +478,53 @@ def sort_service_layers(layers):
         result += sorted_layer_dict[key]
     return result
 
+def get_service_ids(protocol_list, number_records):
+    csw_results = list(map(
+        lambda x: get_csw_results_by_protocol(x, number_records),
+        protocol_list,
+    ))
+    return [
+        item for sublist in csw_results for item in sublist
+    ]  # flatten list of lists
+
+
+def get_capabilities_docs(services):
+    loop = asyncio.get_event_loop()
+    future = asyncio.ensure_future(
+        get_data_asynchronous(services, get_cap)
+    )
+    loop.run_until_complete(future)
+    capabilities_docs = future.result()
+    return capabilities_docs
+
+def get_datasets(dataset_ids):
+    loop = asyncio.get_event_loop()
+    future = asyncio.ensure_future(
+        get_data_asynchronous(dataset_ids, get_dataset_metadata)
+    )
+    loop.run_until_complete(future)
+    datasets = future.result()
+    datasets = list(filter(None, datasets)) # filter out empty datasets, happens when an expected dataset metadatarecords is not present in NGR
+    return datasets
+
+def get_services(csw_results):
+    loop = asyncio.get_event_loop()
+    future = asyncio.ensure_future(
+        get_data_asynchronous(csw_results, get_service_information)
+    )
+    loop.run_until_complete(future)
+    services = join_lists_by_property(
+        csw_results, future.result(), "metadata_id"
+    )
+    filtered_services = filter_get_records_responses(services)
+    return sorted(filtered_services, key=lambda x: x["title"])
+
+def report_services_summary(services, protocol_list):
+    nr_services = len(services)
+    logging.info(f"indexed {nr_services} services")
+    for prot in protocol_list:
+        nr_services_prot = len([x for x in services if x["protocol"] == prot])
+        logging.info(f"indexed {prot} {nr_services_prot} services")
 
 def main_services(args):
     output_file = args.output_file
@@ -477,67 +533,36 @@ def main_services(args):
     retrieve_dataset_metadata = args.dataset_md
     protocols = args.protocols
     show_warnings = args.show_warnings
+
+    protocol_list = PROTOCOLS
+    if protocols:
+        protocol_list = protocols.split(",")
+
+
     if not show_warnings:
         cm = warnings.catch_warnings()
         warnings.simplefilter("ignore")
     else:
         cm = nullcontext()
-
     with cm:
-        protocol_list = PROTOCOLS
-        if protocols:
-            protocol_list = protocols.split(",")
-
-        csw_results = list(
-            map(
-                lambda x: get_csw_results_by_protocol(x, number_records),
-                protocol_list,
-            )
-        )
-        csw_results = [
-            item for sublist in csw_results for item in sublist
-        ]  # flatten list of lists
-        loop = asyncio.get_event_loop()
-        future = asyncio.ensure_future(
-            get_data_asynchronous(csw_results, get_service_information)
-        )
-        loop.run_until_complete(future)
-        get_record_results = join_lists_by_property(
-            csw_results, future.result(), "metadata_id"
-        )
-        filtered_record_results = filter_get_records_responses(get_record_results)
-        sorted_results = sorted(filtered_record_results, key=lambda x: x["title"])
+        service_ids = get_service_ids(protocol_list, number_records)
+        services = get_services(service_ids)
 
         if retrieve_dataset_metadata:
-            datasetIds = list(set([x["dataset_metadata_id"] for x in sorted_results]))
-            loop = asyncio.get_event_loop()
-            future = asyncio.ensure_future(
-                get_data_asynchronous(datasetIds, get_dataset_metadata)
-            )
-            loop.run_until_complete(future)
-            dataset_records = future.result()
-            sorted_results = {"datasets": [{**x, 'services': [y for y in sorted_results if y["dataset_metadata_id"] == x["metadata_id"]]   } for x in dataset_records]}
-
-            for ds in sorted_results["datasets"]:
+            dataset_ids = list(set([x["dataset_metadata_id"] for x in services]))
+            datasets = get_datasets(dataset_ids)
+            datasets_services = {"datasets": [{**x, 'services': [y for y in services if y["dataset_metadata_id"] == x["metadata_id"]]   } for x in datasets]}
+            for ds in datasets_services["datasets"]:
                 for svc in ds["services"]:
-                    del svc["dataset_metadata_id"]
-                
-        
-            
-
-        # nr_services = len(sorted_results)
-        # logging.info(f"indexed {nr_services} services")
-
-        # for prot in protocol_list:
-        #     nr_services_prot = len([x for x in sorted_results if x["protocol"] == prot])
-        #     logging.info(f"indexed {prot} {nr_services_prot} services")
+                    del svc["dataset_metadata_id"] # del redundant dataset_metadata_id key from service
+                 
+        report_services_summary(services, protocol_list)
 
         with open(output_file, "w") as f:
             indent = None
             if pretty:
                 indent = 4
-            json.dump(sorted_results, f, indent=indent)
-
+            json.dump(datasets_services, f, indent=indent)
         logging.info(f"output written to {output_file}")
 
 
@@ -559,9 +584,14 @@ def main_layers(args):
     number_records = args.number
     sort = args.sort
     pretty = args.pretty
+    mode = args.mode
     protocols = args.protocols
     identifier = args.id
     show_warnings = args.show_warnings
+
+    protocol_list = PROTOCOLS
+    if protocols:
+        protocol_list = protocols.split(",")
 
     if not show_warnings:
         cm = warnings.catch_warnings()
@@ -570,60 +600,35 @@ def main_layers(args):
         cm = nullcontext()
 
     with cm:
-        protocol_list = PROTOCOLS
-        if protocols:
-            protocol_list = protocols.split(",")
         if identifier:
-            csw_results = get_csw_results_by_id(identifier)
+            service_ids = get_csw_results_by_id(identifier)
         else:
-            csw_results = list(
-                map(
-                    lambda x: get_csw_results_by_protocol(x, number_records),
-                    protocol_list,
-                )
-            )
-            csw_results = [
-                item for sublist in csw_results for item in sublist
-            ]  # flatten list of lists
-        loop = asyncio.get_event_loop()
-        future = asyncio.ensure_future(
-            get_data_asynchronous(csw_results, get_service_information)
-        )
-        loop.run_until_complete(future)
-        get_record_results = join_lists_by_property(
-            csw_results, future.result(), "metadata_id"
-        )
+            service_ids = get_service_ids(protocol_list, number_records)
+        
+        services = get_services(service_ids)
+        capabilities_docs = get_capabilities_docs(services)
+        failed_services = list(filter(lambda x: "layers" not in x, capabilities_docs))
+        capabilities_docs = list(filter(
+            lambda x: "layers" in x, capabilities_docs
+        ))  # filter out services where getcap req failed
 
-        get_record_results_filtered = filter_get_records_responses(get_record_results)
-
-        nr_services = len(get_record_results_filtered)
-
-        loop = asyncio.get_event_loop()
-        future = asyncio.ensure_future(
-            get_data_asynchronous(get_record_results_filtered, get_cap)
-        )
-        loop.run_until_complete(future)
-        cap_results = future.result()
-        failed_services = list(filter(lambda x: "layers" not in x, cap_results))
-        failed_svc_urls = map(lambda x: x["url"], failed_services)
-        nr_failed_services = len(failed_services)
-        cap_results = filter(
-            lambda x: "layers" in x, cap_results
-        )  # filter out services where getcap req failed
-        config = list(map(flatten_service, cap_results))
-
-        # each services returns as a list of layers, flatten list, see https://stackoverflow.com/a/953097
-        config = [item for sublist in config for item in sublist]
-        wms_layers = list(filter(lambda x: isinstance(x, list), config))
-        config = list(filter(lambda x: isinstance(x, dict), config))
-        # # wms layers are nested one level deeper, due to exploding layers on styles
-        # wms_layers = [item for sublist in wms_layers for item in sublist]
-        config.extend(wms_layers)
-        nr_layers = len(config)
-
-        if sort:
-            logging.info(f"sorting services")
-            config = sort_service_layers(config)
+        if mode == LayersMode.Flat:
+            layers = list(map(flatten_service, capabilities_docs))
+            layers = [item for sublist in layers for item in sublist] # each services returns as a list of layers, flatten list, see https://stackoverflow.com/a/953097
+            if sort:
+                logging.info(f"sorting services")
+                layers = sort_flat_layers(layers)
+            config = layers
+        elif mode == LayersMode.Services:
+            config = list(capabilities_docs)
+        elif mode == LayersMode.Datasets:
+            dataset_ids = list(set([x["dataset_metadata_id"] for x in capabilities_docs]))
+            datasets = get_datasets(dataset_ids)
+            datasets_services = {"datasets": [{**x, 'services': [y for y in capabilities_docs if y["dataset_metadata_id"] == x["metadata_id"]]} for x in datasets]}
+            for ds in datasets_services["datasets"]:
+                for svc in ds["services"]:
+                    del svc["dataset_metadata_id"] # del redundant dataset_metadata_id key from service
+            config = datasets_services
 
         with open(output_file, "w") as f:
             if pretty:
@@ -631,12 +636,22 @@ def main_layers(args):
             else:
                 json.dump(config, f)
 
-        logging.info(f"indexed {nr_services} services with {nr_layers} layers")
-        if nr_failed_services > 0:
-            logging.info(f"failed to index {nr_failed_services} services")
+        # logging.info(f"indexed {len(services)} services with {len(layers)} layers")
+        if len(failed_services) > 0:
+            failed_svc_urls = map(lambda x: x["url"], failed_services)
+            logging.info(f"failed to index {len(failed_services)} services")
             failed_svc_urls_str = "\n".join(failed_svc_urls)
             logging.info(f"failed service urls:\n{failed_svc_urls_str}")
         logging.info(f"output written to {output_file}")
+
+class LayersMode(enum.Enum):
+    Flat = "flat"
+    Services = "services"
+    Datasets = "datasets"
+   
+    def __str__(self):
+        return self.value
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -659,6 +674,7 @@ def main():
         "output_file", metavar="output-file", type=str, help="JSON output file"
     )
 
+    # TODO: validate protocols input, should comma-separated list of following vals: OGC:WMS,OGC:WMTS,OGC:WFS,OGC:WCS,Inspire Atom
     parent_parser.add_argument(
         "-p",
         "--protocols",
@@ -678,21 +694,28 @@ def main():
         help="show user warnings - owslib tends to show warnings about capabilities",
     )
 
+    
+
     subparsers = parser.add_subparsers()
     subparsers.metavar = "subcommand"
     services_parser = subparsers.add_parser(
         "services", parents=[parent_parser], help="Generate list of all PDOK services"
     )
+
     services_parser.add_argument(
         "--dataset-md",
         action="store_true",
-        help="group services by dataset and retrieve dataset metadata",
+        help="group services/layers by dataset and retrieve dataset metadata",
     )
 
     layers_parser = subparsers.add_parser(
         "layers", parents=[parent_parser], help="Generate list of all PDOK layers"
     )
     
+    layers_parser.add_argument(
+        "-m",
+        "--mode",
+       type=LayersMode, choices=list(LayersMode), default=LayersMode.Services)
 
     layers_parser.add_argument(
         "-i",
