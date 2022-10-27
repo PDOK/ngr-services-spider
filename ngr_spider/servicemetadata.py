@@ -26,7 +26,7 @@ class Layer:
     name: str
     title: str
     abstract: str
-    dataset_md_id: str
+    dataset_metadata_id: str
 
 @dataclasses.dataclass
 class WmsLayer(Layer):

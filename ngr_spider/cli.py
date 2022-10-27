@@ -2,11 +2,11 @@
 import argparse
 import asyncio
 import enum
-from importlib.metadata import metadata
 import itertools
 import json
 import logging
 import re
+import sys
 from typing import OrderedDict
 import warnings
 from concurrent.futures import ThreadPoolExecutor
@@ -34,8 +34,6 @@ SORTING_RULES = {
     11: {"names": ["^actueel_ortho25$"], "types": ["wmts"]},
     12: {"names": ["^actueel_ortho25ir$"], "types": ["wmts"]},
     13: {"names": ["lufolabels"], "types": ["wmts"]},
-    # 15: {'names': ['^\d{4}_ortho'], 'types': ['wmts']},
-    # 16: {'names': ['^\d{4}_ortho+IR'], 'types': ['wmts']},
     20: {
         "names": ["landgebied", "provinciegebied", "gemeentegebied"],
         "types": ["wfs"],
@@ -47,15 +45,12 @@ SORTING_RULES = {
     },  # BRT-lagen
     34: {"names": ["bgtstandaardv2", "bgtachtergrond"], "types": ["wmts"]},
     60: {"names": ["ahn3+"], "types": ["wmts"]},
-    # 90: {'names': ['aan+'], 'types': ['wmts']},
 }
-
 
 logging.basicConfig(
     level=LOG_LEVEL,
     format="%(asctime)s - %(levelname)s: %(message)s",
 )
-
 
 def get_sorting_value(layer_info):
     if not "name" in layer_info:
@@ -141,20 +136,6 @@ def get_record_by_id(metadata_id:str):
     return csw.records[metadata_id]
 
 
-# def get_identifier_from_getrecordbyid_url(self, url):
-#     url = url.lower()
-
-
-# def get_protocol_by_ur(url):
-#     for prot in PROTOCOLS:
-#         # pattern looks like this: '.*\/wms(:?\/|\?).*'
-#         pattern = re.compile(f'.*\/{prot.split(":")[1].lower()}(:?\/|\?).*')
-#         m = pattern.match(url)
-#         if m:
-#             return prot
-#     return ""
-
-
 def get_dataset_metadata(md_id: str) -> CswDatasetRecord:
     csw = CatalogueServiceWeb(CSW_URL)
     csw.getrecordbyid(id=[md_id], outputschema="http://www.isotc211.org/2005/gmd")
@@ -200,8 +181,6 @@ def get_csw_service_records(record: CswListRecord) -> CswServiceRecord:
     )
     return service_metadata
     
-
-
 async def get_data_asynchronous(results, fun):
     result = []
     with ThreadPoolExecutor(max_workers=10) as executor:
@@ -242,7 +221,7 @@ def get_wcs_cap(service_record: CswServiceRecord)-> WcsService:
             title= empty_string_if_none(wcs[lyr].title),
             abstract= empty_string_if_none(wcs[lyr].abstract),
             name= wcs[lyr].id,
-            dataset_md_id=service_record.dataset_metadata_id
+            dataset_metadata_id=service_record.dataset_metadata_id
         )
 
     def OWS(cls, tag):
@@ -282,7 +261,7 @@ def get_wfs_cap(service_record: CswServiceRecord) -> Service:
             title= empty_string_if_none(wfs[lyr].title),
             abstract=empty_string_if_none(wfs[lyr].abstract),
             name=wfs[lyr].id,
-            dataset_md_id=service_record.dataset_metadata_id,
+            dataset_metadata_id=service_record.dataset_metadata_id,
         ) 
     try:
         url = service_record.service_url
@@ -352,7 +331,7 @@ def get_wms_cap(service_record: CswServiceRecord) -> WmsService:
             crs=",".join([x[4] for x in wms[lyr].crs_list]),
             minscale=minscale,
             maxscale=maxscale,
-            dataset_md_id=dataset_md_id
+            dataset_metadata_id=dataset_md_id
         )
     try:
         if "://secure" in service_record.service_url:
@@ -389,7 +368,7 @@ def get_wmts_cap(service_record: CswServiceRecord)-> WmtsService:
             abstract= empty_string_if_none(wmts[lyr].abstract),
             tilematrixsets= ",".join(list(wmts[lyr].tilematrixsetlinks.keys())),
             imgformats= ",".join(wmts[lyr].formats),
-            dataset_md_id=service_record.dataset_metadata_id,
+            dataset_metadata_id=service_record.dataset_metadata_id,
         )
 
     try:
@@ -419,54 +398,54 @@ def get_wmts_cap(service_record: CswServiceRecord)-> WmtsService:
 
 
 def flatten_service(service):
+
+    service_fields_mapping = [
+        "url",
+        "title",
+        "abstract",
+        "protocol",
+        "metadata_id"
+    ]
+
     def flatten_layer_wms(layer):
         layer["imgformats"] = service["imgformats"]
-        layer["service_url"] = service["url"]
-        layer["service_title"] = service["title"]
-        layer["service_type"] = service["protocol"].split(":")[1].lower()
-        layer["service_abstract"] = service["abstract"]
-        layer["service_metadata_id"] = service["metadata_id"]
-        layer["dataset_metadata_id"] = service["dataset_metadata_id"]
-        return layer
-
-    def flatten_layer_wcs(layer):
-        layer["service_url"] = service["url"]
-        layer["service_title"] = service["title"]
-        layer["service_type"] = service["protocol"].split(":")[1].lower()
-        layer["service_abstract"] = service["abstract"] if (not None) else ""
-        layer["service_metadata_id"] = service["metadata_id"]
-        layer["dataset_metadata_id"] = service["dataset_metadata_id"]
+        for field in service_fields_mapping:
+            layer[f"service_{field}"] = service[field]
 
         return layer
 
-    def flatten_layer_wfs(layer):
-        layer["service_url"] = service["url"]
-        layer["service_title"] = service["title"]
-        layer["service_type"] = service["protocol"].split(":")[1].lower()
-        layer["service_abstract"] = service["abstract"] if (not None) else ""
-        layer["service_metadata_id"] = service["metadata_id"]
-        layer["dataset_metadata_id"] = service["dataset_metadata_id"]
-        return layer
+    def flatten_coverage_wcs(coverage):
+        for field in service_fields_mapping:
+            coverage[f"service_{field}"] = service[field]
+        return coverage
+
+    def flatten_featuretype_wfs(featuretype):
+        for field in service_fields_mapping:
+            featuretype[f"service_{field}"] = service[field]
+        return featuretype
 
     def flatten_layer_wmts(layer):
-        layer["service_title"] = service["title"]
-        layer["service_url"] = service["url"]
-        layer["service_type"] = service["protocol"].split(":")[1].lower()
-        layer["service_abstract"] = service["abstract"] if (not None) else ""
-        layer["service_metadata_id"] = service["metadata_id"]
-        layer["dataset_metadata_id"] = service["dataset_metadata_id"]
+        for field in service_fields_mapping:
+            layer[f"service_{field}"] = service[field]
         return layer
 
     def flatten_layer(layer):
         fun_mapping = {
             "OGC:WMS": flatten_layer_wms,
-            "OGC:WFS": flatten_layer_wfs,
-            "OGC:WCS": flatten_layer_wcs,
+            "OGC:WFS": flatten_featuretype_wfs,
+            "OGC:WCS": flatten_coverage_wcs,
             "OGC:WMTS": flatten_layer_wmts,
         }
-        return fun_mapping[service["protocol"]](layer)
+        return fun_mapping[protocol](layer)
 
-    result = list(map(flatten_layer, service["layers"]))
+    resource_type_mapping = {
+            "OGC:WMS": "layers",
+            "OGC:WFS": "featuretypes",
+            "OGC:WCS": "coverages",
+            "OGC:WMTS": "layers",
+    }
+    protocol = service["protocol"]
+    result = list(map(flatten_layer, service[resource_type_mapping[protocol]]))
     return result
 
 
@@ -639,6 +618,7 @@ def main_layers(args):
     protocols = args.protocols
     identifier = args.id
     show_warnings = args.show_warnings
+    snake_case = args.snake_case
 
     protocol_list = PROTOCOLS
     if protocols:
@@ -665,7 +645,10 @@ def main_layers(args):
 
         if mode == LayersMode.Services:
             config = [asdict(x) for x in list(capabilities_docs)]
-            config_camel = [replace_keys(x, convert_snake_to_camelcase) for x in config]
+            if not snake_case:
+                config = [replace_keys(x, convert_snake_to_camelcase) for x in config]
+
+            
         elif mode == LayersMode.Datasets:
             dataset_ids = list(
                 set([x.dataset_metadata_id for x in capabilities_docs])
@@ -674,7 +657,6 @@ def main_layers(args):
 
             datasets_dict = [asdict(x) for x in datasets]
             services_dict = [asdict(x) for x in capabilities_docs]
-
 
             datasets_services = {
                 "datasets": [
@@ -694,53 +676,34 @@ def main_layers(args):
                     del svc[
                         "dataset_metadata_id"
                     ]  # del redundant dataset_metadata_id key from service
-            config_camel = replace_keys(datasets_services, convert_snake_to_camelcase) 
+            config = datasets_services
+            if not snake_case:
+                config = replace_keys(datasets_services, convert_snake_to_camelcase)
+
         if mode == LayersMode.Flat:
-            raise NotImplementedError
-        
-        # Fix old implementation below
-        # if mode == LayersMode.Flat:
-        #     layers = list(map(flatten_service, capabilities_docs))
-        #     layers = [
-        #         item for sublist in layers for item in sublist
-        #     ]  # each services returns as a list of layers, flatten list, see https://stackoverflow.com/a/953097
-        #     if sort:
-        #         logging.info(f"sorting services")
-        #         layers = sort_flat_layers(layers)
-        #     config = layers
-        # elif mode == LayersMode.Services:
-        #     config = list(capabilities_docs)
-        # elif mode == LayersMode.Datasets:
-        #     dataset_ids = list(
-        #         set([x["dataset_metadata_id"] for x in capabilities_docs])
-        #     )
-        #     datasets = get_datasets(dataset_ids)
-        #     datasets_services = {
-        #         "datasets": [
-        #             {
-        #                 **x,
-        #                 "services": [
-        #                     y
-        #                     for y in capabilities_docs
-        #                     if y["dataset_metadata_id"] == x["metadata_id"]
-        #                 ],
-        #             }
-        #             for x in datasets
-        #         ]
-        #     }
-        #     for ds in datasets_services["datasets"]:
-        #         for svc in ds["services"]:
-        #             del svc[
-        #                 "dataset_metadata_id"
-        #             ]  # del redundant dataset_metadata_id key from service
-        #     config = datasets_services
+            services_dict = [asdict(x) for x in capabilities_docs]
+            layers = list(map(flatten_service, services_dict))
+            layers = [
+                item for sublist in layers for item in sublist
+            ]  # each services returns as a list of layers, flatten list, see https://stackoverflow.com/a/953097
+            if sort:
+                logging.info(f"sorting services")
+                layers = sort_flat_layers(layers)
+            
+            config = layers
+            if not snake_case:
+                config = [replace_keys(x, convert_snake_to_camelcase) for x in layers]
 
-        with open(output_file, "w") as f:
-            if pretty:
-                json.dump(config_camel, f, indent=4)
-            else:
-                json.dump(config_camel, f)
-
+        if pretty:
+            content = json.dumps(config, indent=4)
+        else:
+            content = json.dumps(config)
+        if output_file == "-":
+            sys.stdout.write(content)
+        else:
+            with open(output_file, 'w') as f:
+                f.write(content)
+                    
         # logging.info(f"indexed {len(services)} services with {len(layers)} layers")
         # if len(failed_services) > 0:
         #     failed_svc_urls = map(lambda x: x["url"], failed_services)
@@ -754,7 +717,6 @@ class LayersMode(enum.Enum):
     Flat = "flat"
     Services = "services"
     Datasets = "datasets"
-
     def __str__(self):
         return self.value
 
@@ -788,6 +750,10 @@ def main():
         type=str,
         default="",
         help=f'service protocols (types) to query, comma-separated, values: {", ".join(PROTOCOLS)}',
+    )
+
+    parent_parser.add_argument(
+        "--snake-case", dest="snake_case", action="store_true", help="output snake_case attributes instead of camelCase"
     )
 
     parent_parser.add_argument(
