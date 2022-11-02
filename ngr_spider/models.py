@@ -1,10 +1,18 @@
-import dataclasses
-from typing import Dict
-from lxml import etree
+
+import enum
 from urllib.parse import parse_qs, urlparse
 import logging
-from dataclass_wizard import JSONWizard
+from dataclass_wizard import JSONWizard # type: ignore
+from lxml import etree # type: ignore
+import dataclasses # type: ignore
 
+class LayersMode(enum.Enum):
+    Flat = "flat"
+    Services = "services"
+    Datasets = "datasets"
+    def __str__(self):
+        return self.value
+        
 @dataclasses.dataclass
 class CswListRecord:
     title: str
@@ -41,8 +49,11 @@ class WmtsLayer(Layer):
     tilematrixsets: str
     imgformats: str
     
+@dataclasses.dataclass
+class ServiceError():
+    url: str
+    metadata_id: str
 
-    
 @dataclasses.dataclass
 class Service(JSONWizard):
     title: str
@@ -95,7 +106,6 @@ class CswServiceRecord(JSONWizard):
     title: str
     abstract: str
     use_limitation: str
-    point_of_contact: dict()
     keywords: list[str]
     operates_on: str
     metadata_id: str
@@ -205,7 +215,11 @@ class CswServiceRecord(JSONWizard):
 
     def get_service_protocol(self):
         xpath_query = f"{self._xpath_ci_resource}/gmd:protocol/gmx:Anchor/text()"
-        return self.get_text_xpath(xpath_query)
+        result = self.get_text_xpath(xpath_query)
+        if result == '':
+            xpath_query = f"{self._xpath_ci_resource}/gmd:protocol/gco:CharacterString/text()"
+            result = self.get_text_xpath(xpath_query)
+        return result
 
     def get_service_description(self):
         xpath_query = f"{self._xpath_ci_resource}/gmd:description/gmx:Anchor/text()"
@@ -218,7 +232,7 @@ class CswServiceRecord(JSONWizard):
         self.title = self.get_title()
         self.abstract = self.get_abstract()
         self.use_limitation = self.get_use_limitation()
-        self.point_of_contact = self.get_point_of_contact()
+        # self.point_of_contact = self.get_point_of_contact()
         self.keywords = self.get_keywords()
         self.operates_on = self.get_operates_on()
         self.dataset_metadata_id = self.get_dataset_record_identifier(self.operates_on)
