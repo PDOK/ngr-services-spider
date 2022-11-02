@@ -128,7 +128,7 @@ class CswServiceRecord(JSONWizard):
     _xpath_sv_service_identification = (
         ".//gmd:identificationInfo/srv:SV_ServiceIdentification"
     )
-    _xpath_ci_resource = ".//gmd:distributionInfo/gmd:MD_Distribution/gmd:transferOptions/gmd:MD_DigitalTransferOptions/gmd:onLine/gmd:CI_OnlineResource"
+    _xpath_ci_resource = ".//gmd:distributionInfo/gmd:MD_Distribution/gmd:transferOptions/gmd:MD_DigitalTransferOptions/gmd:onLine"
 
     def __repr__(self):
         dict_repr = ", ".join(
@@ -147,9 +147,11 @@ class CswServiceRecord(JSONWizard):
         xpath_query = f"{self._xpath_sv_service_identification}/gmd:resourceConstraints/gmd:MD_Constraints/gmd:useLimitation/gco:CharacterString/text()"
         return self.get_text_xpath(xpath_query)
 
-    def get_text_xpath(self, xpath_query):
+    def get_text_xpath(self, xpath_query, el=None):
+        if el is None:
+            el = self.root
         try:
-            return str(self.root.xpath(xpath_query, namespaces=self._ns)[0])
+            return str(el.xpath(xpath_query, namespaces=self._ns)[0])
         except IndexError:
             return ""
 
@@ -209,21 +211,38 @@ class CswServiceRecord(JSONWizard):
         except IndexError:
             return ""
 
-    def get_service_url(self):
-        xpath_query = f"{self._xpath_ci_resource}/gmd:linkage/gmd:URL/text()"
-        return self.get_text_xpath(xpath_query)
 
-    def get_service_protocol(self):
-        xpath_query = f"{self._xpath_ci_resource}/gmd:protocol/gmx:Anchor/text()"
-        result = self.get_text_xpath(xpath_query)
-        if result == '':
-            xpath_query = f"{self._xpath_ci_resource}/gmd:protocol/gco:CharacterString/text()"
-            result = self.get_text_xpath(xpath_query)
+    
+    def get_service_protocol(self, el):
+        xpath_query = f"gmd:CI_OnlineResource/gmd:protocol/gmx:Anchor/text()"
+        result = self.get_text_xpath(xpath_query, el)
+        if result == "":
+            xpath_query = f"gmd:CI_OnlineResource/gmd:protocol/gco:CharacterString/text()"
+            result = self.get_text_xpath(xpath_query, el)
         return result
 
-    def get_service_description(self):
-        xpath_query = f"{self._xpath_ci_resource}/gmd:description/gmx:Anchor/text()"
-        return self.get_text_xpath(xpath_query)
+    def get_service_url(self, el):
+        xpath_query = f"gmd:CI_OnlineResource/gmd:linkage/gmd:URL/text()"
+        result = str(el.xpath(xpath_query, namespaces=self._ns)[0])
+        return result
+
+    def get_service_el(self):
+        xpath_query = f"{self._xpath_ci_resource}"
+        online_els = self.root.xpath(xpath_query, namespaces=self._ns)
+        for el in online_els:
+            protocol = self.get_service_protocol(el)
+            if protocol.startswith("OGC:") or protocol == "INSPIRE Atom":
+                return el
+        return None
+
+    def get_service_description(self, el):
+        xpath_query = f"gmd:CI_OnlineResource/gmd:description/gmx:Anchor/text()"
+        result = self.get_text_xpath(xpath_query, el)
+        if result == "":
+            xpath_query = f"gmd:CI_OnlineResource/gmd:description/gco:CharacterString/text()"
+            result = self.get_text_xpath(xpath_query, el)
+
+        return result
 
     def __init__(self, xml):
         parser = etree.XMLParser(ns_clean=True, recover=True, encoding="utf-8")
@@ -236,6 +255,7 @@ class CswServiceRecord(JSONWizard):
         self.keywords = self.get_keywords()
         self.operates_on = self.get_operates_on()
         self.dataset_metadata_id = self.get_dataset_record_identifier(self.operates_on)
-        self.service_url = self.get_service_url()
-        self.service_protocol = self.get_service_protocol()
-        self.service_description = self.get_service_description()
+        service_el = self.get_service_el()
+        self.service_url = self.get_service_url(service_el)
+        self.service_protocol = self.get_service_protocol(service_el)
+        self.service_description = self.get_service_description(service_el)

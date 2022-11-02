@@ -86,12 +86,11 @@ def get_csw_results_by_id(id: str) -> list[CswListRecord]:
     return get_csw_results(query)    
 
 
-def get_csw_results_by_protocol(protocol:str, maxresults:int=0) -> list[CswListRecord]:
-    svc_owner = "Beheer PDOK"
+def get_csw_results_by_protocol(protocol:str, svc_owner:str, max_results:int=0) -> list[CswListRecord]:
     query = (
         f"type='service' AND organisationName='{svc_owner}' AND protocol='{protocol}'"
     )
-    records = get_csw_results(query, maxresults)
+    records = get_csw_results(query, max_results)
     logging.info(f"found {len(records)} {protocol} service metadata records")
     return records
 
@@ -433,10 +432,10 @@ def sort_flat_layers(layers, rules_path):
         return result
 
 
-def get_csw_list_result(protocol_list: list[str], number_records:int) -> list[CswListRecord]:
+def get_csw_list_result(protocol_list: list[str], svc_owner:str, number_records:int) -> list[CswListRecord]:
     csw_results = list(
         map(
-            lambda x: get_csw_results_by_protocol(x, number_records),
+            lambda x: get_csw_results_by_protocol(x, svc_owner, number_records),
             protocol_list,
         )
     )

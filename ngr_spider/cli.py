@@ -25,6 +25,7 @@ def main_services(args):
     retrieve_dataset_metadata = args.dataset_md
     protocols = args.protocols
     show_warnings = args.show_warnings
+    svc_owner = args.service_owner
 
     protocol_list = PROTOCOLS
     if protocols:
@@ -36,7 +37,7 @@ def main_services(args):
     else:
         cm = nullcontext()
     with cm:
-        list_records = get_csw_list_result(protocol_list, number_records)
+        list_records = get_csw_list_result(protocol_list, svc_owner, number_records)
 
         services = get_csw_services(list_records)
 
@@ -87,6 +88,7 @@ def main_layers(args):
     identifier = args.id
     show_warnings = args.show_warnings
     snake_case = args.snake_case
+    svc_owner = args.service_owner
 
     protocol_list = PROTOCOLS
     if protocols:
@@ -102,7 +104,7 @@ def main_layers(args):
         if identifier:
             service_ids = get_csw_results_by_id(identifier)
         else:
-            service_ids = get_csw_list_result(protocol_list, number_records)
+            service_ids = get_csw_list_result(protocol_list, svc_owner, number_records)
 
         service_records = get_csw_services(service_ids)
         services = get_services(service_records)
@@ -170,8 +172,17 @@ def main_layers(args):
         else:
             with open(output_file, 'w') as f:
                 f.write(content)
-                    
-        logging.info(f"indexed {len(succesful_services)} services with {len(layers)} layers")
+
+        lookup = {
+            "OGC:WMTS": "layers",
+            "OGC:WMS": "layers",
+            "OGC:WfS":"featuretypes",
+            "OGC:WCS": "coverages"
+        }
+        total_nr_layers=sum(map(lambda x: len(x[lookup[x["protocol"]]]), succesful_services))    
+        
+        
+        logging.info(f"indexed {len(succesful_services)} services with {total_nr_layers} layers/featuretypes/coverages")
         if len(service_errors) > 0:
             service_errors_string = [
                 f"{x.metadata_id}:{x.url}" for x in service_errors
@@ -212,6 +223,14 @@ def main():
         type=str,
         default="",
         help=f'service protocols (types) to query, comma-separated, values: {", ".join(PROTOCOLS)}',
+    )
+
+    parent_parser.add_argument(
+        "--service-owner",
+        action="store",
+        type=str,
+        default="Beheer PDOK",
+        help=f'Service Owner to query NGR for',
     )
 
     parent_parser.add_argument(
