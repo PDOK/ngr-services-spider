@@ -1,18 +1,20 @@
-
 import enum
 from urllib.parse import parse_qs, urlparse
 import logging
-from dataclass_wizard import JSONWizard # type: ignore
-from lxml import etree # type: ignore
-import dataclasses # type: ignore
+from dataclass_wizard import JSONWizard  # type: ignore
+from lxml import etree  # type: ignore
+import dataclasses  # type: ignore
+
 
 class LayersMode(enum.Enum):
     Flat = "flat"
     Services = "services"
     Datasets = "datasets"
+
     def __str__(self):
         return self.value
-        
+
+
 @dataclasses.dataclass
 class CswListRecord:
     title: str
@@ -36,6 +38,7 @@ class Layer:
     abstract: str
     dataset_metadata_id: str
 
+
 @dataclasses.dataclass
 class WmsLayer(Layer):
     styles: list[WmsStyle]
@@ -48,21 +51,24 @@ class WmsLayer(Layer):
 class WmtsLayer(Layer):
     tilematrixsets: str
     imgformats: str
-    
+
+
 @dataclasses.dataclass
-class ServiceError():
+class ServiceError:
     url: str
     metadata_id: str
+
 
 @dataclasses.dataclass
 class Service(JSONWizard):
     title: str
     abstract: str
     metadata_id: str
-    dataset_metadata_id:str
+    dataset_metadata_id: str
     url: str
     keywords: list[str]
     protocol: str
+
 
 @dataclasses.dataclass(kw_only=True)
 class WfsService(Service):
@@ -70,17 +76,20 @@ class WfsService(Service):
     output_formats: str
     protocol: str = "OGC:WFS"
 
+
 @dataclasses.dataclass(kw_only=True)
 class WcsService(Service):
     coverages: list[Layer]
     # formats: str # formats no supported for now, OWSLib does not seem to extract the formats correctly
     protocol: str = "OGC:WCS"
 
+
 @dataclasses.dataclass(kw_only=True)
 class WmsService(Service):
     imgformats: str
     layers: list[WmsLayer]
     protocol: str = "OGC:WMS"
+
 
 @dataclasses.dataclass(kw_only=True)
 class WmtsService(Service):
@@ -89,17 +98,19 @@ class WmtsService(Service):
 
 
 @dataclasses.dataclass
-class Dataset():
+class Dataset:
     title: str
     abstract: str
     metadata_id: str
     services: list[Service]
+
 
 @dataclasses.dataclass
 class CswDatasetRecord(JSONWizard):
     title: str
     abstract: str
     metadata_id: str
+
 
 @dataclasses.dataclass
 class CswServiceRecord(JSONWizard):
@@ -174,21 +185,27 @@ class CswServiceRecord(JSONWizard):
             keywords_els = md_keyword.xpath("./gmd:keyword", namespaces=self._ns)
             for keyword_el in keywords_els:
                 try:
-                    keyword_val = str(keyword_el.xpath(
-                        "./gco:CharacterString/text()", namespaces=self._ns
-                    )[0])
+                    keyword_val = str(
+                        keyword_el.xpath(
+                            "./gco:CharacterString/text()", namespaces=self._ns
+                        )[0]
+                    )
                     if "" not in keywords_result:
                         keywords_result[""] = []
                     keywords_result[""].append(keyword_val)
 
                 except IndexError:
                     try:
-                        keyword_val = str(keyword_el.xpath(
-                            "./gmx:Anchor/text()", namespaces=self._ns
-                        )[0])
-                        keyword_ns = str(keyword_el.xpath(
-                            "./gmx:Anchor/@xlink:href", namespaces=self._ns
-                        )[0])
+                        keyword_val = str(
+                            keyword_el.xpath(
+                                "./gmx:Anchor/text()", namespaces=self._ns
+                            )[0]
+                        )
+                        keyword_ns = str(
+                            keyword_el.xpath(
+                                "./gmx:Anchor/@xlink:href", namespaces=self._ns
+                            )[0]
+                        )
                         if keyword_ns not in keywords_result:
                             keywords_result[keyword_ns] = []
                         keywords_result[keyword_ns].append(keyword_val)
@@ -211,13 +228,13 @@ class CswServiceRecord(JSONWizard):
         except IndexError:
             return ""
 
-
-    
     def get_service_protocol(self, el):
         xpath_query = f"gmd:CI_OnlineResource/gmd:protocol/gmx:Anchor/text()"
         result = self.get_text_xpath(xpath_query, el)
         if result == "":
-            xpath_query = f"gmd:CI_OnlineResource/gmd:protocol/gco:CharacterString/text()"
+            xpath_query = (
+                f"gmd:CI_OnlineResource/gmd:protocol/gco:CharacterString/text()"
+            )
             result = self.get_text_xpath(xpath_query, el)
         return result
 
@@ -239,7 +256,9 @@ class CswServiceRecord(JSONWizard):
         xpath_query = f"gmd:CI_OnlineResource/gmd:description/gmx:Anchor/text()"
         result = self.get_text_xpath(xpath_query, el)
         if result == "":
-            xpath_query = f"gmd:CI_OnlineResource/gmd:description/gco:CharacterString/text()"
+            xpath_query = (
+                f"gmd:CI_OnlineResource/gmd:description/gco:CharacterString/text()"
+            )
             result = self.get_text_xpath(xpath_query, el)
 
         return result

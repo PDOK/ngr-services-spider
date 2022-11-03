@@ -183,7 +183,7 @@ def main_layers(args):
         lookup = {
             "OGC:WMTS": "layers",
             "OGC:WMS": "layers",
-            "OGC:WfS": "featuretypes",
+            "OGC:WFS": "featuretypes",
             "OGC:WCS": "coverages",
         }
         total_nr_layers = sum(

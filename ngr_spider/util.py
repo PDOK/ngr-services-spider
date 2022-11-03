@@ -10,20 +10,36 @@ from types import MethodType
 from urllib import parse
 
 import requests
-from owslib.csw import CatalogueServiceWeb # type: ignore
-from owslib.wcs import WebCoverageService, wcs110 # type: ignore
-from owslib.wfs import WebFeatureService # type: ignore
-from owslib.wms import WebMapService # type: ignore
+from owslib.csw import CatalogueServiceWeb  # type: ignore
+from owslib.wcs import WebCoverageService, wcs110  # type: ignore
+from owslib.wfs import WebFeatureService  # type: ignore
+from owslib.wms import WebMapService  # type: ignore
 from owslib.wmts import WebMapTileService
 
-from ngr_spider.constants import CSW_URL, LOG_LEVEL # type: ignore
+from ngr_spider.constants import CSW_URL, LOG_LEVEL, WMTS_PROTOCOL, WFS_PROTOCOL, WCS_PROTOCOL, WMS_PROTOCOL  # type: ignore
 
-from .models import CswDatasetRecord, CswListRecord, CswServiceRecord, Layer, LayersMode, Service, ServiceError, WcsService, WfsService, WmsLayer, WmsService, WmsStyle, WmtsLayer, WmtsService
+from .models import (
+    CswDatasetRecord,
+    CswListRecord,
+    CswServiceRecord,
+    Layer,
+    LayersMode,
+    Service,
+    ServiceError,
+    WcsService,
+    WfsService,
+    WmsLayer,
+    WmsService,
+    WmsStyle,
+    WmtsLayer,
+    WmtsService,
+)
 
 logging.basicConfig(
     level=LOG_LEVEL,
     format="%(asctime)s - %(levelname)s: %(message)s",
 )
+
 
 def get_sorting_value(layer, rules):
     if not "name" in layer:
@@ -34,10 +50,11 @@ def get_sorting_value(layer, rules):
             for name in rule["names"]:
                 if re.search(name, layer_name) is not None:
                     return rule["index"]
-    if layer["service_protocol"] == "OGC:WMTS":
+    if layer["service_protocol"] == WMTS_PROTOCOL:
         return 99  # other wmts layers
     else:
         return 100  # all other layers
+
 
 def join_lists_by_property(list_1, list_2, prop_name):
     lst = sorted(itertools.chain(list_1, list_2), key=lambda x: x[prop_name])
@@ -50,7 +67,7 @@ def join_lists_by_property(list_1, list_2, prop_name):
     return result
 
 
-def get_csw_results(query:str, maxresults:int=0) -> list[CswListRecord]:
+def get_csw_results(query: str, maxresults: int = 0) -> list[CswListRecord]:
     csw = CatalogueServiceWeb(CSW_URL)
     result = []
     start = 1
@@ -83,10 +100,12 @@ def get_csw_results(query:str, maxresults:int=0) -> list[CswListRecord]:
 
 def get_csw_results_by_id(id: str) -> list[CswListRecord]:
     query = f"identifier='{id}'"
-    return get_csw_results(query)    
+    return get_csw_results(query)
 
 
-def get_csw_results_by_protocol(protocol:str, svc_owner:str, max_results:int=0) -> list[CswListRecord]:
+def get_csw_results_by_protocol(
+    protocol: str, svc_owner: str, max_results: int = 0
+) -> list[CswListRecord]:
     query = (
         f"type='service' AND organisationName='{svc_owner}' AND protocol='{protocol}'"
     )
@@ -95,7 +114,7 @@ def get_csw_results_by_protocol(protocol:str, svc_owner:str, max_results:int=0) 
     return records
 
 
-def get_record_by_id(metadata_id:str):
+def get_record_by_id(metadata_id: str):
     csw = CatalogueServiceWeb(CSW_URL)
     csw.getrecordbyid(id=[metadata_id])
     return csw.records[metadata_id]
@@ -107,13 +126,14 @@ def get_dataset_metadata(md_id: str) -> Optional[CswDatasetRecord]:
     try:
         record = csw.records[md_id]
         result = CswDatasetRecord(
-            title = record.identification.title,
-            abstract = record.identification.abstract,
-            metadata_id = md_id
+            title=record.identification.title,
+            abstract=record.identification.abstract,
+            metadata_id=md_id,
         )
         return result
     except KeyError:  # TODO: log missing dataset records
         return None
+
 
 def get_csw_service_records(record: CswListRecord) -> CswServiceRecord:
     """Retrieve service metadata record for input["metadata_id"] en return title, protocol en service url
@@ -125,7 +145,9 @@ def get_csw_service_records(record: CswListRecord) -> CswServiceRecord:
         ServiceMetadata
     """
     csw = CatalogueServiceWeb(CSW_URL)
-    csw.getrecordbyid(id=[record.identifier], outputschema="http://www.isotc211.org/2005/gmd")
+    csw.getrecordbyid(
+        id=[record.identifier], outputschema="http://www.isotc211.org/2005/gmd"
+    )
     csw_record = csw.records[record.identifier]
     service_metadata = CswServiceRecord(csw_record.xml)
 
@@ -145,7 +167,8 @@ def get_csw_service_records(record: CswListRecord) -> CswServiceRecord:
         f"{service_url}?request=GetCapabilities&service={query_param_svc_type}"
     )
     return service_metadata
-    
+
+
 async def get_data_asynchronous(results, fun):
     result = []
     with ThreadPoolExecutor(max_workers=10) as executor:
@@ -165,31 +188,33 @@ async def get_data_asynchronous(results, fun):
 
 def get_service(service_record: CswServiceRecord) -> Union[Service, ServiceError]:
     protocol = service_record.service_protocol
-    if protocol == "OGC:WMS":
+    if protocol == WMS_PROTOCOL:
         service = get_wms_cap(service_record)
-    elif protocol == "OGC:WFS":
+    elif protocol == WFS_PROTOCOL:
         service = get_wfs_cap(service_record)
-    elif protocol == "OGC:WCS":
+    elif protocol == WCS_PROTOCOL:
         service = get_wcs_cap(service_record)
-    elif protocol == "OGC:WMTS":
+    elif protocol == WMTS_PROTOCOL:
         service = get_wmts_cap(service_record)
     return service
+
 
 def empty_string_if_none(input_str):
     return input_str if input_str is not None else ""
 
-def get_wcs_cap(service_record: CswServiceRecord)-> Union[WcsService, ServiceError]: 
+
+def get_wcs_cap(service_record: CswServiceRecord) -> Union[WcsService, ServiceError]:
     def convert_layer(lyr) -> Layer:
-        return Layer (
-            title= empty_string_if_none(wcs[lyr].title),
-            abstract= empty_string_if_none(wcs[lyr].abstract),
-            name= wcs[lyr].id,
-            dataset_metadata_id=service_record.dataset_metadata_id
+        return Layer(
+            title=empty_string_if_none(wcs[lyr].title),
+            abstract=empty_string_if_none(wcs[lyr].abstract),
+            name=wcs[lyr].id,
+            dataset_metadata_id=service_record.dataset_metadata_id,
         )
 
     def OWS(cls, tag):
         return "{http://www.opengis.net/ows/1.1}" + tag
-   
+
     try:
         url = service_record.service_url
         md_id = service_record.metadata_id
@@ -209,7 +234,7 @@ def get_wcs_cap(service_record: CswServiceRecord)-> Union[WcsService, ServiceErr
             url=service_record.service_url,
             coverages=list(map(convert_layer, list(wcs.contents))),
             keywords=wcs.identification.keywords,
-            dataset_metadata_id=service_record.dataset_metadata_id
+            dataset_metadata_id=service_record.dataset_metadata_id,
         )
     except requests.exceptions.HTTPError as e:
         logging.error(f"md_id: {md_id} - {e}")
@@ -222,11 +247,12 @@ def get_wcs_cap(service_record: CswServiceRecord)-> Union[WcsService, ServiceErr
 def get_wfs_cap(service_record: CswServiceRecord) -> Union[WfsService, ServiceError]:
     def convert_layer(lyr) -> Layer:
         return Layer(
-            title= empty_string_if_none(wfs[lyr].title),
+            title=empty_string_if_none(wfs[lyr].title),
             abstract=empty_string_if_none(wfs[lyr].abstract),
             name=wfs[lyr].id,
             dataset_metadata_id=service_record.dataset_metadata_id,
-        ) 
+        )
+
     try:
         url = service_record.service_url
         md_id = service_record.metadata_id
@@ -240,10 +266,10 @@ def get_wfs_cap(service_record: CswServiceRecord) -> Union[WfsService, ServiceEr
             abstract=empty_string_if_none(wfs.identification.abstract),
             metadata_id=md_id,
             url=service_record.service_url,
-            output_formats=getfeature_op.parameters["outputFormat"]["values"], # type: ignore
+            output_formats=getfeature_op.parameters["outputFormat"]["values"],  # type: ignore
             featuretypes=list(map(convert_layer, list(wfs.contents))),
             keywords=wfs.identification.keywords,
-            dataset_metadata_id=service_record.dataset_metadata_id
+            dataset_metadata_id=service_record.dataset_metadata_id,
         )
     except requests.exceptions.HTTPError as e:
         logging.error(f"md-identifier: {md_id} - {e}")
@@ -251,7 +277,6 @@ def get_wfs_cap(service_record: CswServiceRecord) -> Union[WfsService, ServiceEr
         message = f"exception while retrieving WFS cap for service md-identifier: {md_id}, url: {url}"
         logging.exception(message)
     return ServiceError(service_record.service_url, service_record.metadata_id)
-
 
 
 def get_md_id_from_url(url):
@@ -264,11 +289,11 @@ def get_md_id_from_url(url):
         return params["id"]
 
 
-def get_wms_cap(service_record: CswServiceRecord) ->  Union[WmsService, ServiceError]:  
+def get_wms_cap(service_record: CswServiceRecord) -> Union[WmsService, ServiceError]:
     def convert_layer(lyr) -> WmsLayer:
         styles: list[WmsStyle] = []
         for style_name in list(wms[lyr].styles.keys()):
-            style_obj = wms[lyr].styles[style_name]            
+            style_obj = wms[lyr].styles[style_name]
             title: str = ""
             if "title" in style_obj:
                 title = style_obj["title"]
@@ -291,13 +316,14 @@ def get_wms_cap(service_record: CswServiceRecord) ->  Union[WmsService, ServiceE
         return WmsLayer(
             name=lyr,
             title=empty_string_if_none(wms[lyr].title),
-            abstract= empty_string_if_none(wms[lyr].abstract),
+            abstract=empty_string_if_none(wms[lyr].abstract),
             styles=styles,
             crs=",".join([x[4] for x in wms[lyr].crs_list]),
             minscale=minscale,
             maxscale=maxscale,
-            dataset_metadata_id=dataset_md_id
+            dataset_metadata_id=dataset_md_id,
         )
+
     try:
         if "://secure" in service_record.service_url:
             # this is a secure layer not for the general public: ignore
@@ -306,16 +332,16 @@ def get_wms_cap(service_record: CswServiceRecord) ->  Union[WmsService, ServiceE
         logging.info(f"{service_record.metadata_id} - {service_record.service_url}")
         wms = WebMapService(service_record.service_url, version="1.3.0")
         getmap_op = next((x for x in wms.operations if x.name == "GetMap"), None)
-        layers = list(wms.contents)     
+        layers = list(wms.contents)
         return WmsService(
             title=empty_string_if_none(wms.identification.title),
             abstract=empty_string_if_none(wms.identification.abstract),
             keywords=wms.identification.keywords,
             layers=list(map(convert_layer, layers)),
-            imgformats=",".join(getmap_op.formatOptions), # type: ignore
+            imgformats=",".join(getmap_op.formatOptions),  # type: ignore
             metadata_id=service_record.metadata_id,
             url=service_record.service_url,
-            dataset_metadata_id=service_record.dataset_metadata_id
+            dataset_metadata_id=service_record.dataset_metadata_id,
         )
     except requests.exceptions.HTTPError as e:
         logging.error(f"md-identifier: {service_record.metadata_id} - {e}")
@@ -324,14 +350,15 @@ def get_wms_cap(service_record: CswServiceRecord) ->  Union[WmsService, ServiceE
         logging.exception(message)
     return ServiceError(service_record.service_url, service_record.metadata_id)
 
-def get_wmts_cap(service_record: CswServiceRecord)-> Union[WmtsService, ServiceError]:
+
+def get_wmts_cap(service_record: CswServiceRecord) -> Union[WmtsService, ServiceError]:
     def convert_layer(lyr) -> WmtsLayer:
-        return WmtsLayer( 
-            name= lyr,
-            title= empty_string_if_none(wmts[lyr].title),
-            abstract= empty_string_if_none(wmts[lyr].abstract),
-            tilematrixsets= ",".join(list(wmts[lyr].tilematrixsetlinks.keys())),
-            imgformats= ",".join(wmts[lyr].formats),
+        return WmtsLayer(
+            name=lyr,
+            title=empty_string_if_none(wmts[lyr].title),
+            abstract=empty_string_if_none(wmts[lyr].abstract),
+            tilematrixsets=",".join(list(wmts[lyr].tilematrixsetlinks.keys())),
+            imgformats=",".join(wmts[lyr].formats),
             dataset_metadata_id=service_record.dataset_metadata_id,
         )
 
@@ -350,7 +377,7 @@ def get_wmts_cap(service_record: CswServiceRecord)-> Union[WmtsService, ServiceE
             url=url,
             layers=list(map(convert_layer, list(wmts.contents))),
             keywords=wmts.identification.keywords,
-            dataset_metadata_id=service_record.dataset_metadata_id
+            dataset_metadata_id=service_record.dataset_metadata_id,
         )
 
     except requests.exceptions.HTTPError as e:
@@ -361,15 +388,8 @@ def get_wmts_cap(service_record: CswServiceRecord)-> Union[WmtsService, ServiceE
     return ServiceError(service_record.service_url, service_record.metadata_id)
 
 
-
 def flatten_service(service):
-    service_fields_mapping = [
-        "url",
-        "title",
-        "abstract",
-        "protocol",
-        "metadata_id"
-    ]
+    service_fields_mapping = ["url", "title", "abstract", "protocol", "metadata_id"]
 
     def flatten_layer_wms(layer):
         layer["imgformats"] = service["imgformats"]
@@ -395,18 +415,18 @@ def flatten_service(service):
 
     def flatten_layer(layer):
         fun_mapping = {
-            "OGC:WMS": flatten_layer_wms,
-            "OGC:WFS": flatten_featuretype_wfs,
-            "OGC:WCS": flatten_coverage_wcs,
-            "OGC:WMTS": flatten_layer_wmts,
+            WMS_PROTOCOL: flatten_layer_wms,
+            WFS_PROTOCOL: flatten_featuretype_wfs,
+            WCS_PROTOCOL: flatten_coverage_wcs,
+            WMTS_PROTOCOL: flatten_layer_wmts,
         }
         return fun_mapping[protocol](layer)
 
     resource_type_mapping = {
-            "OGC:WMS": "layers",
-            "OGC:WFS": "featuretypes",
-            "OGC:WCS": "coverages",
-            "OGC:WMTS": "layers",
+        WMS_PROTOCOL: "layers",
+        WFS_PROTOCOL: "featuretypes",
+        WCS_PROTOCOL: "coverages",
+        WMTS_PROTOCOL: "layers",
     }
     protocol = service["protocol"]
     result = list(map(flatten_layer, service[resource_type_mapping[protocol]]))
@@ -414,7 +434,7 @@ def flatten_service(service):
 
 
 def sort_flat_layers(layers, rules_path):
-    with open(rules_path, 'r') as f:
+    with open(rules_path, "r") as f:
         rules = json.load(f)
         sorted_layer_dict = {}
         for layer in layers:
@@ -432,7 +452,9 @@ def sort_flat_layers(layers, rules_path):
         return result
 
 
-def get_csw_list_result(protocol_list: list[str], svc_owner:str, number_records:int) -> list[CswListRecord]:
+def get_csw_list_result(
+    protocol_list: list[str], svc_owner: str, number_records: int
+) -> list[CswListRecord]:
     csw_results = list(
         map(
             lambda x: get_csw_results_by_protocol(x, svc_owner, number_records),
@@ -444,15 +466,17 @@ def get_csw_list_result(protocol_list: list[str], svc_owner:str, number_records:
     ]  # flatten list of lists
 
 
-def get_services(service_records: list[CswServiceRecord]) -> list[Union[Service, ServiceError]]:
+def get_services(
+    service_records: list[CswServiceRecord],
+) -> list[Union[Service, ServiceError]]:
     loop = asyncio.get_event_loop()
     future = asyncio.ensure_future(get_data_asynchronous(service_records, get_service))
     loop.run_until_complete(future)
-    services_list: list[Union[Service, ServiceError]]= future.result()
+    services_list: list[Union[Service, ServiceError]] = future.result()
     return services_list
 
 
-def get_csw_datasets(dataset_ids: list[str])-> list[CswDatasetRecord]:
+def get_csw_datasets(dataset_ids: list[str]) -> list[CswDatasetRecord]:
     loop = asyncio.get_event_loop()
     future = asyncio.ensure_future(
         get_data_asynchronous(dataset_ids, get_dataset_metadata)
@@ -464,14 +488,15 @@ def get_csw_datasets(dataset_ids: list[str])-> list[CswDatasetRecord]:
     )  # filter out empty datasets, happens when an expected dataset metadatarecords is not present in NGR
     return datasets
 
-def filter_service_records(records:list[CswServiceRecord]) -> list[CswServiceRecord]:
+
+def filter_service_records(records: list[CswServiceRecord]) -> list[CswServiceRecord]:
     filtered_records = filter(
         lambda x: x.service_url != "", records
     )  # filter out results without serviceurl
     # delete duplicate service entries, some service endpoint have multiple service records
     # so last record in get_record_results will be retained in case of duplicate
     # since it will be inserted in new_dict last
-    new_dict: dict[str, CswServiceRecord] = {x.service_url:x for x in filtered_records}
+    new_dict: dict[str, CswServiceRecord] = {x.service_url: x for x in filtered_records}
     return [value for _, value in new_dict.items()]
 
 
@@ -493,9 +518,11 @@ def report_services_summary(services: list[CswServiceRecord], protocol_list: lis
         nr_services_prot = len([x for x in services if x.service_protocol == prot])
         logging.info(f"indexed {prot} {nr_services_prot} services")
 
+
 def convert_snake_to_camelcase(snake_str):
-    first, *others = snake_str.split('_')
-    return ''.join([first.lower(), *map(str.title, others)])
+    first, *others = snake_str.split("_")
+    return "".join([first.lower(), *map(str.title, others)])
+
 
 def replace_keys(dictionary: dict, fun) -> dict:
     empty = {}
@@ -508,7 +535,7 @@ def replace_keys(dictionary: dict, fun) -> dict:
             empty[fun(k)] = replace_keys(v, fun)
         elif type(v) == list:
             newvalues = [replace_keys(x, fun) for x in v]
-            empty[fun(k)] = newvalues # type: ignore
+            empty[fun(k)] = newvalues  # type: ignore
         else:
             empty[fun(k)] = v
     return empty

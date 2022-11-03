@@ -16,7 +16,7 @@ dependencies = [
     "lxml >= 4.9.1",
     "dataclass-wizard>=0.22.2"
 ]
-requires-python = ">=3.10.8"
+requires-python = ">=3.10.6"
 
 [project.optional-dependencies]
 dev = ["black", "mypy"]
