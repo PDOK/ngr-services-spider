@@ -5,10 +5,10 @@ import logging
 import sys
 import warnings
 from contextlib import nullcontext
-from dataclasses import asdict # type: ignore
+from dataclasses import asdict  # type: ignore
 
 from ngr_spider.constants import LOG_LEVEL, PROTOCOLS
-from ngr_spider.util import convert_snake_to_camelcase, flatten_service, get_services, get_csw_list_result, get_csw_results_by_id, get_csw_datasets, get_csw_services, replace_keys, report_services_summary, sort_flat_layers # type: ignore
+from ngr_spider.util import convert_snake_to_camelcase, flatten_service, get_services, get_csw_list_result, get_csw_results_by_id, get_csw_datasets, get_csw_services, replace_keys, report_services_summary, sort_flat_layers  # type: ignore
 
 from .models import LayersMode, Service, ServiceError
 
@@ -17,6 +17,7 @@ logging.basicConfig(
     level=LOG_LEVEL,
     format="%(asctime)s - %(levelname)s: %(message)s",
 )
+
 
 def main_services(args):
     output_file = args.output_file
@@ -44,7 +45,7 @@ def main_services(args):
         if retrieve_dataset_metadata:
             dataset_ids = list(set([x.dataset_metadata_id for x in services]))
             datasets = get_csw_datasets(dataset_ids)
-            
+
             datasets_dict = [asdict(x) for x in datasets]
             services_dict = [asdict(x) for x in services]
 
@@ -66,9 +67,10 @@ def main_services(args):
                     del svc[
                         "dataset_metadata_id"
                     ]  # del redundant dataset_metadata_id key from service
-            
-            
-            datasets_services_camel = replace_keys(datasets_services, convert_snake_to_camelcase)
+
+            datasets_services_camel = replace_keys(
+                datasets_services, convert_snake_to_camelcase
+            )
         report_services_summary(services, protocol_list)
 
         with open(output_file, "w") as f:
@@ -77,6 +79,7 @@ def main_services(args):
                 indent = 4
             json.dump(datasets_services_camel, f, indent=indent)
         logging.info(f"output written to {output_file}")
+
 
 def main_layers(args):
     output_file = args.output_file
@@ -108,24 +111,28 @@ def main_layers(args):
 
         service_records = get_csw_services(service_ids)
         services = get_services(service_records)
-        
-        service_errors: list[ServiceError] = [x for x in services if type(x) is ServiceError]
-        succesful_services: list[Service] = [x for x in services if issubclass(type(x), Service)]
+
+        service_errors: list[ServiceError] = [
+            x for x in services if type(x) is ServiceError
+        ]
+        succesful_services: list[Service] = [
+            x for x in services if issubclass(type(x), Service)
+        ]
 
         if mode == LayersMode.Services:
-            config = [asdict(x) for x in list(succesful_services)]
+            succesful_services_dict = [asdict(x) for x in list(succesful_services)]
             if not snake_case:
-                config = [replace_keys(x, convert_snake_to_camelcase) for x in config]
+                config = [
+                    replace_keys(x, convert_snake_to_camelcase)
+                    for x in succesful_services_dict
+                ]
 
-            
         elif mode == LayersMode.Datasets:
-            dataset_ids = list(
-                set([x.dataset_metadata_id for x in succesful_services])
-            )
+            dataset_ids = list(set([x.dataset_metadata_id for x in succesful_services]))
             datasets = get_csw_datasets(dataset_ids)
 
             datasets_dict = [asdict(x) for x in datasets]
-            succesful_services = [asdict(x) for x in succesful_services]
+            succesful_services_dict = [asdict(x) for x in succesful_services]
 
             datasets_services = {
                 "datasets": [
@@ -133,7 +140,7 @@ def main_layers(args):
                         **x,
                         "services": [
                             y
-                            for y in succesful_services
+                            for y in succesful_services_dict
                             if y["dataset_metadata_id"] == x["metadata_id"]
                         ],
                     }
@@ -150,15 +157,15 @@ def main_layers(args):
                 config = replace_keys(datasets_services, convert_snake_to_camelcase)
 
         if mode == LayersMode.Flat:
-            succesful_services = [asdict(x) for x in succesful_services]
-            layers = list(map(flatten_service, succesful_services))
+            succesful_services_dict = [asdict(x) for x in succesful_services]
+            layers = list(map(flatten_service, succesful_services_dict))
             layers = [
                 item for sublist in layers for item in sublist
             ]  # each services returns as a list of layers, flatten list, see https://stackoverflow.com/a/953097
             if sort:
                 logging.info(f"sorting services")
                 layers = sort_flat_layers(layers, sort)
-            
+
             config = layers
             if not snake_case:
                 config = [replace_keys(x, convert_snake_to_camelcase) for x in layers]
@@ -170,28 +177,28 @@ def main_layers(args):
         if output_file == "-":
             sys.stdout.write(content)
         else:
-            with open(output_file, 'w') as f:
+            with open(output_file, "w") as f:
                 f.write(content)
 
         lookup = {
             "OGC:WMTS": "layers",
             "OGC:WMS": "layers",
-            "OGC:WfS":"featuretypes",
-            "OGC:WCS": "coverages"
+            "OGC:WfS": "featuretypes",
+            "OGC:WCS": "coverages",
         }
-        total_nr_layers=sum(map(lambda x: len(x[lookup[x["protocol"]]]), succesful_services))    
-        
-        
-        logging.info(f"indexed {len(succesful_services)} services with {total_nr_layers} layers/featuretypes/coverages")
+        total_nr_layers = sum(
+            map(lambda x: len(x[lookup[x["protocol"]]]), succesful_services_dict)
+        )
+
+        logging.info(
+            f"indexed {len(succesful_services_dict)} services with {total_nr_layers} layers/featuretypes/coverages"
+        )
         if len(service_errors) > 0:
-            service_errors_string = [
-                f"{x.metadata_id}:{x.url}" for x in service_errors
-            ]
+            service_errors_string = [f"{x.metadata_id}:{x.url}" for x in service_errors]
             logging.info(f"failed to index {len(service_errors)} services")
             message = "\n".join(service_errors_string)
             logging.info(f"failed service urls:\n{message}")
         logging.info(f"output written to {output_file}")
-
 
 
 def main():
@@ -230,11 +237,14 @@ def main():
         action="store",
         type=str,
         default="Beheer PDOK",
-        help=f'Service Owner to query NGR for',
+        help=f"Service Owner to query NGR for",
     )
 
     parent_parser.add_argument(
-        "--snake-case", dest="snake_case", action="store_true", help="output snake_case attributes instead of camelCase"
+        "--snake-case",
+        dest="snake_case",
+        action="store_true",
+        help="output snake_case attributes instead of camelCase",
     )
 
     parent_parser.add_argument(

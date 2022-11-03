@@ -1,3 +1,33 @@
+[project]
+name = "ngr-services-spider"
+description = "test"
+keywords = ["ngr", "csw", "pdok", "ows"]
+license = { file = "LICENSE" }
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+]
+version = "0.0.1"
+readme = { file = "./README.md", content-type = "text/markdown" }
+dependencies = [
+    "OWSLib >= 0.23.0",
+    "requests >= 2.25.0",
+    "lxml >= 4.9.1",
+    "dataclass-wizard>=0.22.2"
+]
+requires-python = ">=3.10.8"
+
+[project.optional-dependencies]
+dev = ["black", "mypy"]
+
 [build-system]
 build-backend = "setuptools.build_meta"
 requires = ["setuptools", "wheel"]
+
+[project.scripts]
+ngr-spider = "ngr_spider.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["ngr_spider*"]  # package names should match these glob patterns (["*"] by default)
+exclude = []  # exclude packages matching these glob patterns (empty by default)
