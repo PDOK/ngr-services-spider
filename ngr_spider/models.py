@@ -1,9 +1,26 @@
 import enum
+from typing import Optional, Tuple, Union
 from urllib.parse import parse_qs, urlparse
 import logging
 from dataclass_wizard import JSONWizard  # type: ignore
 from lxml import etree  # type: ignore
-import dataclasses  # type: ignore
+import dataclasses
+import requests
+from ngr_spider.constants import ATOM_PROTOCOL, WCS_PROTOCOL, WFS_PROTOCOL, WMS_PROTOCOL, WMTS_PROTOCOL  # type: ignore
+
+from dataclasses import dataclass, field, is_dataclass
+from urllib import parse
+
+from ngr_spider.decorators import nested_dataclass
+from dataclasses_json import config
+
+
+def get_query_param_val(url, param_name):
+    try:
+        parsed_url = parse.urlparse(url)
+        return parse.parse_qs(parsed_url.query)[param_name][0]
+    except (KeyError, IndexError):
+        return ""
 
 
 class LayersMode(enum.Enum):
@@ -13,6 +30,11 @@ class LayersMode(enum.Enum):
 
     def __str__(self):
         return self.value
+
+
+def ExcludeIfNone(value):
+    """Do not include field for None values"""
+    return value is None
 
 
 @dataclasses.dataclass
@@ -70,31 +92,209 @@ class Service(JSONWizard):
     protocol: str
 
 
+@dataclasses.dataclass
+class Link:
+    url: str
+    type: str
+    length: int
+    title: str
+    bbox: Optional[Tuple[float, float, float, float]]
+
+
+@nested_dataclass
+class Download:
+    id: str
+    title: str
+    content: str
+    updated: str
+    links: list[Link]
+
+
+@nested_dataclass
+class DatasetFeed:
+    id: str
+    url: str
+    title: str
+    abstract: str
+    updated: str
+    rights: str
+    dataset_source_id: str
+    dataset_metadata_id: str
+    downloads: list[Download]
+
+
+def get_text_xpath(xpath_query, el, ns):
+    try:
+        return str(el.xpath(xpath_query, namespaces=ns)[0])
+    except IndexError:
+        return ""
+
+
+@nested_dataclass
+class AtomService(Service):
+    datasets: list[Optional[DatasetFeed]]
+    id: str
+    url: str
+    title: str
+    abstract: str
+    updated: str
+    rights: str
+    protocol: str
+
+    _ns = {
+        "atom": "http://www.w3.org/2005/Atom",
+        "georss": "http://www.georss.org/georss",
+        "inspire_dls": "http://inspire.ec.europa.eu/schemas/inspire_dls/1.0",
+    }
+
+    def get_link(self, link_el) -> Link:
+
+        url = get_text_xpath("@href", link_el, self._ns)
+        type = get_text_xpath("@type", link_el, self._ns)
+        length = get_text_xpath("@length", link_el, self._ns)
+        title = get_text_xpath("@title", link_el, self._ns)
+        bbox_str = get_text_xpath("@bboxy", link_el, self._ns)
+        bbox: Optional[tuple[float, float, float, float]] = None
+        if bbox_str:
+            bbox_list = bbox_str.split(",")
+            bbox = tuple(
+                [
+                    float(bbox_list[0]),
+                    float(bbox_list[1]),
+                    float(bbox_list[2]),
+                    float(bbox_list[3]),
+                ]  # type: ignore
+            )
+        return Link(url, type, length, title, bbox)
+
+    def get_download(self, download_el) -> Download:
+        dl_title = get_text_xpath("atom:title/text()", download_el, self._ns)
+        dl_id = get_text_xpath("atom:id/text()", download_el, self._ns)
+        dl_content = get_text_xpath("atom:content/text()", download_el, self._ns)
+        dl_updated = get_text_xpath("atom:updated/text()", download_el, self._ns)
+        link_els = download_el.xpath(
+            "atom:link",
+            namespaces=self._ns,
+        )
+
+        links: list[Link] = list(map(lambda x: self.get_link(x), link_els))
+
+        link_urls = list(map(lambda x: x.url, links))
+        duplicate_urls = list_duplicates(link_urls)
+
+        for duplicate_url in duplicate_urls:
+            links = list(
+                filter(lambda x: x.url == duplicate_url and x.type != "", links)
+            )
+
+        # filter out duplicate links without type attribute, some sort of legacy convention of PDOK services...
+        return Download(dl_id, dl_title, dl_content, dl_updated, links)
+
+    def get_dataset_feed(self, entry) -> Optional[DatasetFeed]:
+        ds_feed_url = get_text_xpath(
+            "atom:link[@type='application/atom+xml']/@href", entry, self._ns
+        )
+        dataset_source_id = get_text_xpath(
+            "inspire_dls:spatial_dataset_identifier_code/text()", entry, self._ns
+        )
+        dataset_metadata_url = get_text_xpath(
+            "atom:link[@rel='describedby'][@type='application/xml']/@href",
+            entry,
+            self._ns,
+        )
+        if dataset_metadata_url == "":
+            return None
+        dataset_metadata_id = get_query_param_val(dataset_metadata_url, "id")
+
+        r = requests.get(ds_feed_url)
+        ds_root = etree.fromstring(r.content, parser=self._parser)
+        id = get_text_xpath("/atom:feed/atom:id/text()", ds_root, self._ns)
+        title = get_text_xpath("/atom:feed/atom:title/text()", ds_root, self._ns)
+        abstract = get_text_xpath("/atom:feed/atom:subtitle/text()", ds_root, self._ns)
+        updated = get_text_xpath("/atom:feed/atom:updated/text()", ds_root, self._ns)
+        rights = get_text_xpath("/atom:feed/atom:rights/text()", ds_root, self._ns)
+        download_els = ds_root.xpath("/atom:feed/atom:entry", namespaces=self._ns)
+
+        downloads: list[Download] = []
+        for download_el in download_els:
+            dl = self.get_download(download_el)
+            downloads.append(dl)
+        return DatasetFeed(
+            id,
+            ds_feed_url,
+            title,
+            abstract,
+            updated,
+            rights,
+            dataset_source_id,
+            dataset_metadata_id,
+            downloads,
+        )
+
+    def __init__(self, url, xml):
+        self._parser = etree.XMLParser(ns_clean=True, recover=True, encoding="utf-8")
+        self._root = etree.fromstring(xml.encode(), parser=self._parser)
+        self.xml = xml
+        self.url = url
+        self.protocol = ATOM_PROTOCOL
+        self.id = self.title = get_text_xpath(
+            "/atom:feed/atom:id/text()", self._root, self._ns
+        )
+        self.title = get_text_xpath(
+            "/atom:feed/atom:title/text()", self._root, self._ns
+        )
+        self.abstract = get_text_xpath(
+            "/atom:feed/atom:subtitle/text()", self._root, self._ns
+        )
+        self.updated = get_text_xpath(
+            "/atom:feed/atom:updated/text()", self._root, self._ns
+        )
+        self.rights = get_text_xpath(
+            "/atom:feed/atom:rights/text()", self._root, self._ns
+        )
+
+        self.datasets = []
+        entries = self._root.xpath(
+            "/atom:feed/atom:entry",
+            namespaces=self._ns,
+        )
+        datasets = []
+        for entry in entries:
+            ds = self.get_dataset_feed(entry)
+            datasets.append(ds)
+
+        self.datasets = list(filter(lambda x: x is not None, datasets))
+
+        super(AtomService, self).__init__(
+            self.title, self.abstract, "", "", url, [], self.protocol
+        )
+
+
 @dataclasses.dataclass(kw_only=True)
 class WfsService(Service):
     featuretypes: list[Layer]
     output_formats: str
-    protocol: str = "OGC:WFS"
+    protocol: str = WFS_PROTOCOL
 
 
 @dataclasses.dataclass(kw_only=True)
 class WcsService(Service):
     coverages: list[Layer]
     # formats: str # formats no supported for now, OWSLib does not seem to extract the formats correctly
-    protocol: str = "OGC:WCS"
+    protocol: str = WMS_PROTOCOL
 
 
 @dataclasses.dataclass(kw_only=True)
 class WmsService(Service):
     imgformats: str
     layers: list[WmsLayer]
-    protocol: str = "OGC:WMS"
+    protocol: str = WCS_PROTOCOL
 
 
 @dataclasses.dataclass(kw_only=True)
 class WmtsService(Service):
     layers: list[WmtsLayer]
-    protocol: str = "OGC:WMTS"
+    protocol: str = WMTS_PROTOCOL
 
 
 @dataclasses.dataclass
@@ -110,6 +310,15 @@ class CswDatasetRecord(JSONWizard):
     title: str
     abstract: str
     metadata_id: str
+
+
+def list_duplicates(seq):
+    seen = set()
+    seen_add = seen.add
+    # adds all elements it doesn't know yet to seen and all other to seen_twice
+    seen_twice = set(x for x in seq if x in seen or seen_add(x))
+    # turn the set into a list (as requested)
+    return list(seen_twice)
 
 
 @dataclasses.dataclass

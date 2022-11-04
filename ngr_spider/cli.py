@@ -7,10 +7,19 @@ import warnings
 from contextlib import nullcontext
 from dataclasses import asdict  # type: ignore
 
-from ngr_spider.constants import LOG_LEVEL, PROTOCOLS
+from ngr_spider.constants import (
+    ATOM_PROTOCOL,
+    LOG_LEVEL,
+    PROTOCOLS,
+    WCS_PROTOCOL,
+    WFS_PROTOCOL,
+    WMS_PROTOCOL,
+    WMTS_PROTOCOL,
+)
+from ngr_spider.decorators import asdict_minus_none
 from ngr_spider.util import convert_snake_to_camelcase, flatten_service, get_services, get_csw_list_result, get_csw_results_by_id, get_csw_datasets, get_csw_services, replace_keys, report_services_summary, sort_flat_layers  # type: ignore
 
-from .models import LayersMode, Service, ServiceError
+from .models import AtomService, LayersMode, Service, ServiceError
 
 
 logging.basicConfig(
@@ -41,13 +50,13 @@ def main_services(args):
         list_records = get_csw_list_result(protocol_list, svc_owner, number_records)
 
         services = get_csw_services(list_records)
+        services_dict = [asdict_minus_none(x) for x in services]
 
         if retrieve_dataset_metadata:
             dataset_ids = list(set([x.dataset_metadata_id for x in services]))
             datasets = get_csw_datasets(dataset_ids)
 
-            datasets_dict = [asdict(x) for x in datasets]
-            services_dict = [asdict(x) for x in services]
+            datasets_dict = [asdict_minus_none(x) for x in datasets]
 
             datasets_services = {
                 "datasets": [
@@ -68,16 +77,19 @@ def main_services(args):
                         "dataset_metadata_id"
                     ]  # del redundant dataset_metadata_id key from service
 
-            datasets_services_camel = replace_keys(
-                datasets_services, convert_snake_to_camelcase
-            )
+            config = replace_keys(datasets_services, convert_snake_to_camelcase)
+        else:
+            config = [
+                replace_keys(x, convert_snake_to_camelcase) for x in services_dict
+            ]
+
         report_services_summary(services, protocol_list)
 
         with open(output_file, "w") as f:
             indent = None
             if pretty:
                 indent = 4
-            json.dump(datasets_services_camel, f, indent=indent)
+            json.dump(config, f, indent=indent)
         logging.info(f"output written to {output_file}")
 
 
@@ -120,7 +132,9 @@ def main_layers(args):
         ]
 
         if mode == LayersMode.Services:
-            succesful_services_dict = [asdict(x) for x in list(succesful_services)]
+            succesful_services_dict = [
+                asdict_minus_none(x) for x in list(succesful_services)
+            ]
             if not snake_case:
                 config = [
                     replace_keys(x, convert_snake_to_camelcase)
@@ -128,11 +142,18 @@ def main_layers(args):
                 ]
 
         elif mode == LayersMode.Datasets:
+            if AtomService in list(
+                map(lambda x: type(x), succesful_services)
+            ):  # TODO: move this check to arg parse function
+                raise NotImplementedError(
+                    "Grouping Atom services by datasets has not been implemented (yet)."
+                )
+
             dataset_ids = list(set([x.dataset_metadata_id for x in succesful_services]))
             datasets = get_csw_datasets(dataset_ids)
 
-            datasets_dict = [asdict(x) for x in datasets]
-            succesful_services_dict = [asdict(x) for x in succesful_services]
+            datasets_dict = [asdict_minus_none(x) for x in datasets]
+            succesful_services_dict = [asdict_minus_none(x) for x in succesful_services]
 
             datasets_services = {
                 "datasets": [
@@ -157,7 +178,7 @@ def main_layers(args):
                 config = replace_keys(datasets_services, convert_snake_to_camelcase)
 
         if mode == LayersMode.Flat:
-            succesful_services_dict = [asdict(x) for x in succesful_services]
+            succesful_services_dict = [asdict_minus_none(x) for x in succesful_services]
             layers = list(map(flatten_service, succesful_services_dict))
             layers = [
                 item for sublist in layers for item in sublist
@@ -181,10 +202,11 @@ def main_layers(args):
                 f.write(content)
 
         lookup = {
-            "OGC:WMTS": "layers",
-            "OGC:WMS": "layers",
-            "OGC:WFS": "featuretypes",
-            "OGC:WCS": "coverages",
+            WMTS_PROTOCOL: "layers",
+            WMS_PROTOCOL: "layers",
+            WFS_PROTOCOL: "featuretypes",
+            WCS_PROTOCOL: "coverages",
+            ATOM_PROTOCOL: "datasets",
         }
         total_nr_layers = sum(
             map(lambda x: len(x[lookup[x["protocol"]]]), succesful_services_dict)

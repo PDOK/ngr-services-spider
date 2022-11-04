@@ -16,9 +16,10 @@ from owslib.wfs import WebFeatureService  # type: ignore
 from owslib.wms import WebMapService  # type: ignore
 from owslib.wmts import WebMapTileService
 
-from ngr_spider.constants import CSW_URL, LOG_LEVEL, WMTS_PROTOCOL, WFS_PROTOCOL, WCS_PROTOCOL, WMS_PROTOCOL  # type: ignore
+from ngr_spider.constants import ATOM_PROTOCOL, CSW_URL, LOG_LEVEL, WMTS_PROTOCOL, WFS_PROTOCOL, WCS_PROTOCOL, WMS_PROTOCOL  # type: ignore
 
 from .models import (
+    AtomService,
     CswDatasetRecord,
     CswListRecord,
     CswServiceRecord,
@@ -151,21 +152,22 @@ def get_csw_service_records(record: CswListRecord) -> CswServiceRecord:
     csw_record = csw.records[record.identifier]
     service_metadata = CswServiceRecord(csw_record.xml)
 
-    service_url = service_metadata.service_url
-    service_url = service_url.partition("?")[0]
-    protocol = service_metadata.service_protocol
-    query_param_svc_type = protocol.split(":")[1]
-    if (
-        "https://geodata.nationaalgeoregister.nl/tiles/service/wmts" in service_url
-    ):  # shorten paths, some wmts services have redundant path elements in service_url
-        service_url = "https://geodata.nationaalgeoregister.nl/tiles/service/wmts"
-    if service_url.endswith(
-        "/WMTSCapabilities.xml"
-    ):  # handle cases for restful wmts url, assume kvp variant is supported
-        service_url = service_url.replace("/WMTSCapabilities.xml", "")
-    service_metadata.service_url = (
-        f"{service_url}?request=GetCapabilities&service={query_param_svc_type}"
-    )
+    if service_metadata.service_protocol != ATOM_PROTOCOL:
+        service_url = service_metadata.service_url
+        service_url = service_url.partition("?")[0]
+        protocol = service_metadata.service_protocol
+        query_param_svc_type = protocol.split(":")[1]
+        if (
+            "https://geodata.nationaalgeoregister.nl/tiles/service/wmts" in service_url
+        ):  # shorten paths, some wmts services have redundant path elements in service_url
+            service_url = "https://geodata.nationaalgeoregister.nl/tiles/service/wmts"
+        if service_url.endswith(
+            "/WMTSCapabilities.xml"
+        ):  # handle cases for restful wmts url, assume kvp variant is supported
+            service_url = service_url.replace("/WMTSCapabilities.xml", "")
+        service_metadata.service_url = (
+            f"{service_url}?request=GetCapabilities&service={query_param_svc_type}"
+        )
     return service_metadata
 
 
@@ -189,13 +191,15 @@ async def get_data_asynchronous(results, fun):
 def get_service(service_record: CswServiceRecord) -> Union[Service, ServiceError]:
     protocol = service_record.service_protocol
     if protocol == WMS_PROTOCOL:
-        service = get_wms_cap(service_record)
+        service = get_wms_service(service_record)
     elif protocol == WFS_PROTOCOL:
-        service = get_wfs_cap(service_record)
+        service = get_wfs_service(service_record)
     elif protocol == WCS_PROTOCOL:
-        service = get_wcs_cap(service_record)
+        service = get_wcs_service(service_record)
     elif protocol == WMTS_PROTOCOL:
-        service = get_wmts_cap(service_record)
+        service = get_wmts_service(service_record)
+    elif protocol == ATOM_PROTOCOL:
+        service = get_atom_service(service_record)
     return service
 
 
@@ -203,7 +207,9 @@ def empty_string_if_none(input_str):
     return input_str if input_str is not None else ""
 
 
-def get_wcs_cap(service_record: CswServiceRecord) -> Union[WcsService, ServiceError]:
+def get_wcs_service(
+    service_record: CswServiceRecord,
+) -> Union[WcsService, ServiceError]:
     def convert_layer(lyr) -> Layer:
         return Layer(
             title=empty_string_if_none(wcs[lyr].title),
@@ -244,7 +250,9 @@ def get_wcs_cap(service_record: CswServiceRecord) -> Union[WcsService, ServiceEr
     return ServiceError(service_record.service_url, service_record.metadata_id)
 
 
-def get_wfs_cap(service_record: CswServiceRecord) -> Union[WfsService, ServiceError]:
+def get_wfs_service(
+    service_record: CswServiceRecord,
+) -> Union[WfsService, ServiceError]:
     def convert_layer(lyr) -> Layer:
         return Layer(
             title=empty_string_if_none(wfs[lyr].title),
@@ -289,7 +297,16 @@ def get_md_id_from_url(url):
         return params["id"]
 
 
-def get_wms_cap(service_record: CswServiceRecord) -> Union[WmsService, ServiceError]:
+def get_atom_service(
+    service_record: CswServiceRecord,
+) -> Union[WmsService, ServiceError]:
+    r = requests.get(service_record.service_url)
+    return AtomService(service_record.service_url, r.text)
+
+
+def get_wms_service(
+    service_record: CswServiceRecord,
+) -> Union[WmsService, ServiceError]:
     def convert_layer(lyr) -> WmsLayer:
         styles: list[WmsStyle] = []
         for style_name in list(wms[lyr].styles.keys()):
@@ -351,7 +368,9 @@ def get_wms_cap(service_record: CswServiceRecord) -> Union[WmsService, ServiceEr
     return ServiceError(service_record.service_url, service_record.metadata_id)
 
 
-def get_wmts_cap(service_record: CswServiceRecord) -> Union[WmtsService, ServiceError]:
+def get_wmts_service(
+    service_record: CswServiceRecord,
+) -> Union[WmtsService, ServiceError]:
     def convert_layer(lyr) -> WmtsLayer:
         return WmtsLayer(
             name=lyr,
@@ -429,6 +448,12 @@ def flatten_service(service):
         WMTS_PROTOCOL: "layers",
     }
     protocol = service["protocol"]
+
+    if protocol == "INSPIRE Atom":
+        raise NotImplementedError(  # TODO: move check to argument parse function
+            "Flat output for INSPIRE Atom services has not been implemented (yet)."
+        )
+
     result = list(map(flatten_layer, service[resource_type_mapping[protocol]]))
     return result
 
@@ -527,7 +552,7 @@ def convert_snake_to_camelcase(snake_str):
 def replace_keys(dictionary: dict, fun) -> dict:
     empty = {}
     # special case when it is called for element of array being NOT a dictionary
-    if type(dictionary) == str:
+    if not dictionary or type(dictionary) == str:
         # nothing to do
         return dictionary
     for k, v in dictionary.items():
