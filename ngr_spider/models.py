@@ -12,7 +12,6 @@ from dataclasses import dataclass, field, is_dataclass
 from urllib import parse
 
 from ngr_spider.decorators import nested_dataclass
-from dataclasses_json import config
 
 
 def get_query_param_val(url, param_name):
@@ -281,14 +280,14 @@ class WfsService(Service):
 class WcsService(Service):
     coverages: list[Layer]
     # formats: str # formats no supported for now, OWSLib does not seem to extract the formats correctly
-    protocol: str = WMS_PROTOCOL
+    protocol: str = WCS_PROTOCOL
 
 
 @dataclasses.dataclass(kw_only=True)
 class WmsService(Service):
     imgformats: str
     layers: list[WmsLayer]
-    protocol: str = WCS_PROTOCOL
+    protocol: str = WMS_PROTOCOL
 
 
 @dataclasses.dataclass(kw_only=True)
