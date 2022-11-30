@@ -4,9 +4,9 @@ import itertools
 import json
 import logging
 import re
-from typing import Optional, Union
 from concurrent.futures import ThreadPoolExecutor
 from types import MethodType
+from typing import Optional, Union
 from urllib import parse
 
 import requests
@@ -16,7 +16,15 @@ from owslib.wfs import WebFeatureService  # type: ignore
 from owslib.wms import WebMapService  # type: ignore
 from owslib.wmts import WebMapTileService
 
-from ngr_spider.constants import ATOM_PROTOCOL, CSW_URL, LOG_LEVEL, WMTS_PROTOCOL, WFS_PROTOCOL, WCS_PROTOCOL, WMS_PROTOCOL  # type: ignore
+from ngr_spider.constants import (  # type: ignore
+    ATOM_PROTOCOL,
+    CSW_URL,
+    LOG_LEVEL,
+    WCS_PROTOCOL,
+    WFS_PROTOCOL,
+    WMS_PROTOCOL,
+    WMTS_PROTOCOL
+)
 
 from .models import (
     AtomService,
@@ -24,7 +32,6 @@ from .models import (
     CswListRecord,
     CswServiceRecord,
     Layer,
-    LayersMode,
     Service,
     ServiceError,
     WcsService,
@@ -33,7 +40,7 @@ from .models import (
     WmsService,
     WmsStyle,
     WmtsLayer,
-    WmtsService,
+    WmtsService
 )
 
 logging.basicConfig(

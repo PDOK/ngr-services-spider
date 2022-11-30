@@ -14,13 +14,23 @@ from ngr_spider.constants import (
     WCS_PROTOCOL,
     WFS_PROTOCOL,
     WMS_PROTOCOL,
-    WMTS_PROTOCOL,
+    WMTS_PROTOCOL
 )
 from ngr_spider.decorators import asdict_minus_none
-from ngr_spider.util import convert_snake_to_camelcase, flatten_service, get_services, get_csw_list_result, get_csw_results_by_id, get_csw_datasets, get_csw_services, replace_keys, report_services_summary, sort_flat_layers  # type: ignore
+from ngr_spider.util import (  # type: ignore
+    convert_snake_to_camelcase,
+    flatten_service,
+    get_csw_datasets,
+    get_csw_list_result,
+    get_csw_results_by_id,
+    get_csw_services,
+    get_services,
+    replace_keys,
+    report_services_summary,
+    sort_flat_layers
+)
 
 from .models import AtomService, LayersMode, Service, ServiceError
-
 
 logging.basicConfig(
     level=LOG_LEVEL,
