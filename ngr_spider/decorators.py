@@ -1,6 +1,5 @@
-from dataclasses import dataclass, is_dataclass
 from copy import deepcopy
-from dataclasses import fields
+from dataclasses import dataclass, fields, is_dataclass
 
 
 def asdict_minus_none(obj, dict_factory=dict):

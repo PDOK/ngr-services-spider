@@ -1,18 +1,22 @@
+import dataclasses
 import enum
-from typing import Optional, Tuple, Union
-from urllib.parse import parse_qs, urlparse
 import logging
+from typing import Optional, Tuple
+from urllib import parse
+from urllib.parse import parse_qs, urlparse
+
+import requests
 from dataclass_wizard import JSONWizard  # type: ignore
 from lxml import etree  # type: ignore
-import dataclasses
-import requests
-from ngr_spider.constants import ATOM_PROTOCOL, WCS_PROTOCOL, WFS_PROTOCOL, WMS_PROTOCOL, WMTS_PROTOCOL  # type: ignore
 
-from dataclasses import dataclass, field, is_dataclass
-from urllib import parse
-
+from ngr_spider.constants import (  # type: ignore
+    ATOM_PROTOCOL,
+    WCS_PROTOCOL,
+    WFS_PROTOCOL,
+    WMS_PROTOCOL,
+    WMTS_PROTOCOL
+)
 from ngr_spider.decorators import nested_dataclass
-from dataclasses_json import config
 
 
 def get_query_param_val(url, param_name):
