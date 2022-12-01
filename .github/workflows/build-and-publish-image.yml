@@ -1,6 +1,6 @@
 name: build
 env:
-  image: ngr-services-spider 
+  image: pdok/ngr-services-spider 
 on:
   push:
     tags:
