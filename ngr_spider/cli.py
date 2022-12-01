@@ -6,6 +6,8 @@ import sys
 import warnings
 from contextlib import nullcontext
 from dataclasses import asdict  # type: ignore
+import yaml
+
 
 from ngr_spider.constants import (
     ATOM_PROTOCOL,
@@ -113,6 +115,7 @@ def main_layers(args):
     identifier = args.id
     show_warnings = args.show_warnings
     snake_case = args.snake_case
+    yaml_output = args.yaml
     svc_owner = args.service_owner
 
     protocol_list = PROTOCOLS
@@ -201,10 +204,13 @@ def main_layers(args):
             if not snake_case:
                 config = [replace_keys(x, convert_snake_to_camelcase) for x in layers]
 
-        if pretty:
-            content = json.dumps(config, indent=4)
+        if yaml_output:
+            content = yaml.dump(config, default_flow_style=False)
         else:
-            content = json.dumps(config)
+            if pretty:
+                content = json.dumps(config, indent=4)
+            else:
+                content = json.dumps(config)
         if output_file == "-":
             sys.stdout.write(content)
         else:
@@ -217,7 +223,7 @@ def main_layers(args):
             WFS_PROTOCOL: "featuretypes",
             WCS_PROTOCOL: "coverages",
             ATOM_PROTOCOL: "datasets",
-        }
+        }  # TODO: move to constants.py
         total_nr_layers = sum(
             map(lambda x: len(x[lookup[x["protocol"]]]), succesful_services_dict)
         )
@@ -279,6 +285,12 @@ def main():
         help="output snake_case attributes instead of camelCase",
     )
 
+    parent_parser.add_argument(
+        "--yaml",
+        dest="yaml",
+        action="store_true",
+        help="output YAML instead of JSON",
+    )
     parent_parser.add_argument(
         "--pretty", dest="pretty", action="store_true", help="pretty JSON output"
     )

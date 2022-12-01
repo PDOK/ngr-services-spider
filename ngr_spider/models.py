@@ -285,14 +285,14 @@ class WfsService(Service):
 class WcsService(Service):
     coverages: list[Layer]
     # formats: str # formats no supported for now, OWSLib does not seem to extract the formats correctly
-    protocol: str = WMS_PROTOCOL
+    protocol: str = WCS_PROTOCOL
 
 
 @dataclasses.dataclass(kw_only=True)
 class WmsService(Service):
     imgformats: str
     layers: list[WmsLayer]
-    protocol: str = WCS_PROTOCOL
+    protocol: str = WMS_PROTOCOL
 
 
 @dataclasses.dataclass(kw_only=True)
