@@ -1,4 +1,4 @@
-name: build
+name: Docker Build
 env:
   image: pdok/ngr-services-spider 
 on:
