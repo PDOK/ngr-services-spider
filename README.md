@@ -1,5 +1,10 @@
 # NGR SPIDER
 
+[![GitHub release](https://img.shields.io/github/release/PDOK/ngr-services-spider.svg)](https://github.com/PDOK/ngr-services-spider/releases)
+[![Docker Build](https://github.com/PDOK/ngr-services-spider/actions/workflows/build-and-publish-image.yml/badge.svg)](https://hub.docker.com/r/pdok/ngr-services-spider/tags)
+[![PyPi Build](https://github.com/PDOK/ngr-services-spider/actions/workflows/publish-pypi.yml/badge.svg)](https://pypi.org/project/ngr-services-spider/)
+
+
 CLI (command line interface) application to retrieve list of services and datasets in a simple JSON format from [nationaalgeoregister.nl](https://nationaalgeoregister.nl/) (NGR), leveraging the NGR [CSW service](https://nationaalgeoregister.nl/geonetwork/srv/dut/csw?service=CSW&request=GetCapabilities).
 
 To install from source run (from the root this repo):
