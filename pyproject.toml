@@ -8,7 +8,6 @@ classifiers = [
     "Programming Language :: Python :: 3 :: Only",
     "Programming Language :: Python :: 3.10",
 ]
-version = "0.0.1"
 readme = { file = "./README.md", content-type = "text/markdown" }
 dependencies = [
     "OWSLib >= 0.23.0",
@@ -17,16 +16,24 @@ dependencies = [
     "dataclass-wizard>=0.22.2"
 ]
 requires-python = ">=3.10.6"
+dynamic = ["version"]
 
 [project.optional-dependencies]
 dev = ["black", "mypy"]
 
 [build-system]
 build-backend = "setuptools.build_meta"
-requires = ["setuptools", "wheel"]
+requires = [
+    "setuptools>=45", 
+    "setuptools-git-versioning==1.13.1",
+    "wheel==0.38.4"
+]
 
 [project.scripts]
 ngr-spider = "ngr_spider.cli:main"
+
+[tool.setuptools-git-versioning]
+enabled = true
 
 [tool.setuptools.packages.find]
 include = ["ngr_spider*"]  # package names should match these glob patterns (["*"] by default)
