@@ -1,6 +1,7 @@
 # NGR SPIDER
 
-[![GitHub release](https://img.shields.io/github/release/PDOK/ngr-services-spider.svg)](https://github.com/PDOK/ngr-services-spider/releases)
+[![GitHub license](https://img.shields.io/github/license/PDOK/ngr-services-spider)](https://github.com/PDOK/ngr-services-spider/blob/master/LICENSE)
+[![GitHub release](https://img.shields.io/github/v/release/PDOK/ngr-services-spider.svg?display_name=release&include_prereleases&sort=date)](https://github.com/PDOK/ngr-services-spider/releases)
 [![Docker Build](https://github.com/PDOK/ngr-services-spider/actions/workflows/build-and-publish-image.yml/badge.svg)](https://hub.docker.com/r/pdok/ngr-services-spider/tags)
 [![PyPi Build](https://github.com/PDOK/ngr-services-spider/actions/workflows/publish-pypi.yml/badge.svg)](https://pypi.org/project/ngr-services-spider/)
 
