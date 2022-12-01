@@ -2,7 +2,7 @@
 name = "ngr-services-spider"
 description = "test"
 keywords = ["ngr", "csw", "pdok", "ows"]
-license = { file = "LICENSE" }
+license = {text = "MIT"}
 classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
