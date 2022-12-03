@@ -1,13 +1,9 @@
 #!/usr/bin/env python3
 import argparse
-import json
 import logging
-import sys
+import os
 import warnings
 from contextlib import nullcontext
-from dataclasses import asdict  # type: ignore
-import yaml
-
 
 from ngr_spider.constants import (
     ATOM_PROTOCOL,
@@ -26,10 +22,12 @@ from ngr_spider.util import (  # type: ignore
     get_csw_list_result,
     get_csw_results_by_id,
     get_csw_services,
+    get_output,
     get_services,
     replace_keys,
     report_services_summary,
-    sort_flat_layers
+    sort_flat_layers,
+    write_output
 )
 
 from .models import AtomService, LayersMode, Service, ServiceError
@@ -48,6 +46,10 @@ def main_services(args):
     protocols = args.protocols
     show_warnings = args.show_warnings
     svc_owner = args.service_owner
+    az_conn_string = args.azure_storage_connection_string
+    az_container = args.azure_storage_container
+    yaml_output = args.yaml
+    no_updated = args.no_updated
 
     protocol_list = PROTOCOLS
     if protocols:
@@ -91,17 +93,16 @@ def main_services(args):
 
             config = replace_keys(datasets_services, convert_snake_to_camelcase)
         else:
-            config = [
-                replace_keys(x, convert_snake_to_camelcase) for x in services_dict
-            ]
+            config = {
+                "services": [
+                    replace_keys(x, convert_snake_to_camelcase) for x in services_dict
+                ]
+            }
 
         report_services_summary(services, protocol_list)
+        content = get_output(pretty, yaml_output, config, no_updated)
+        write_output(output_file, az_conn_string, az_container, yaml_output, content)
 
-        with open(output_file, "w") as f:
-            indent = None
-            if pretty:
-                indent = 4
-            json.dump(config, f, indent=indent)
         logging.info(f"output written to {output_file}")
 
 
@@ -117,6 +118,9 @@ def main_layers(args):
     snake_case = args.snake_case
     yaml_output = args.yaml
     svc_owner = args.service_owner
+    az_conn_string = args.azure_storage_connection_string
+    az_container = args.azure_storage_container
+    no_updated = args.no_updated
 
     protocol_list = PROTOCOLS
     if protocols:
@@ -149,10 +153,12 @@ def main_layers(args):
                 asdict_minus_none(x) for x in list(succesful_services)
             ]
             if not snake_case:
-                config = [
-                    replace_keys(x, convert_snake_to_camelcase)
-                    for x in succesful_services_dict
-                ]
+                config = {
+                    "services": [
+                        replace_keys(x, convert_snake_to_camelcase)
+                        for x in succesful_services_dict
+                    ]
+                }
 
         elif mode == LayersMode.Datasets:
             if AtomService in list(
@@ -189,8 +195,7 @@ def main_layers(args):
             config = datasets_services
             if not snake_case:
                 config = replace_keys(datasets_services, convert_snake_to_camelcase)
-
-        if mode == LayersMode.Flat:
+        elif mode == LayersMode.Flat:
             succesful_services_dict = [asdict_minus_none(x) for x in succesful_services]
             layers = list(map(flatten_service, succesful_services_dict))
             layers = [
@@ -200,23 +205,12 @@ def main_layers(args):
                 logging.info(f"sorting services")
                 layers = sort_flat_layers(layers, sort)
 
-            config = layers
+            config = {"layers": layers}
             if not snake_case:
                 config = [replace_keys(x, convert_snake_to_camelcase) for x in layers]
 
-        if yaml_output:
-            content = yaml.dump(config, default_flow_style=False)
-        else:
-            if pretty:
-                content = json.dumps(config, indent=4)
-            else:
-                content = json.dumps(config)
-        if output_file == "-":
-            sys.stdout.write(content)
-        else:
-            with open(output_file, "w") as f:
-                f.write(content)
-
+        content = get_output(pretty, yaml_output, config, no_updated)
+        write_output(output_file, az_conn_string, az_container, yaml_output, content)
         lookup = {
             WMTS_PROTOCOL: "layers",
             WMS_PROTOCOL: "layers",
@@ -227,7 +221,6 @@ def main_layers(args):
         total_nr_layers = sum(
             map(lambda x: len(x[lookup[x["protocol"]]]), succesful_services_dict)
         )
-
         logging.info(
             f"indexed {len(succesful_services_dict)} services with {total_nr_layers} layers/featuretypes/coverages"
         )
@@ -271,6 +264,20 @@ def main():
     )
 
     parent_parser.add_argument(
+        "--azure-storage-connection-string",
+        action="store",
+        type=str,
+        default=os.environ.get("AZURE_STORAGE_CONNECTION_STRING"),
+    )
+
+    parent_parser.add_argument(
+        "--azure-storage-container",
+        action="store",
+        type=str,
+        default=os.environ.get("AZURE_STORAGE_CONTAINER"),
+    )
+
+    parent_parser.add_argument(
         "--service-owner",
         action="store",
         type=str,
@@ -283,6 +290,13 @@ def main():
         dest="snake_case",
         action="store_true",
         help="output snake_case attributes instead of camelCase",
+    )
+
+    parent_parser.add_argument(
+        "--no-updated",
+        dest="snake_case",
+        action="store_true",
+        help="do not add updated field to output file",
     )
 
     parent_parser.add_argument(
