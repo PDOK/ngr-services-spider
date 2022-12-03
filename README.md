@@ -40,18 +40,36 @@ options:
 ngr-spider layers -p OGC:WMS,OGC:WMTS -m datasets pdok-services.json
 ```
 
-## Run Type Check
+## Development
 
-Install package from source with dev dependencies:
+Install dev dependencies and package from source:
 
 ```sh
 python3 -m pip install -e ".[dev]"  
 ```
 
-Then run mypy for type checking (from root):
+To format code install [`black`](https://pypi.org/project/black/) en run from the root of this repo:
 
 ```sh
-python3 -m mypy ngr_spider 
+black .
+```
+
+Delete unused imports with [`autoflake`](https://pypi.org/project/autoflake/):
+
+```sh
+autoflake --remove-all-unused-imports -i -r .
+```
+
+Organise and order imports with [`isort`](https://pypi.org/project/isort/):
+
+```sh
+isort  -m 3 .
+```
+
+Run mypy for type checking (from root):
+
+```sh
+mypy ngr_spider 
 ```
 
 
