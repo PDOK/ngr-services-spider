@@ -1,20 +1,24 @@
 #!/usr/bin/env python3
 import asyncio
+import datetime
 import itertools
 import json
 import logging
 import re
+import sys
 from concurrent.futures import ThreadPoolExecutor
 from types import MethodType
 from typing import Optional, Union
 from urllib import parse
 
 import requests
+import yaml
+from azure.storage.blob import BlobClient, ContentSettings
 from owslib.csw import CatalogueServiceWeb  # type: ignore
 from owslib.wcs import WebCoverageService, wcs110  # type: ignore
 from owslib.wfs import WebFeatureService  # type: ignore
 from owslib.wms import WebMapService  # type: ignore
-from owslib.wmts import WebMapTileService
+from owslib.wmts import WebMapTileService  # type: ignore
 
 from ngr_spider.constants import (  # type: ignore
     ATOM_PROTOCOL,
@@ -47,6 +51,48 @@ logging.basicConfig(
     level=LOG_LEVEL,
     format="%(asctime)s - %(levelname)s: %(message)s",
 )
+
+
+def get_output(
+    pretty, yaml_output, config: dict[str, Union[str, list[dict]]], no_timestamp
+):
+    if not no_timestamp:
+        timestamp = (
+            datetime.datetime.now().astimezone().replace(microsecond=0).isoformat()
+        )
+        config["updated"] = timestamp
+    if yaml_output:
+        content = yaml.dump(config, default_flow_style=False)
+    else:
+        if pretty:
+            content = json.dumps(config, indent=4)
+        else:
+            content = json.dumps(config)
+    return content
+
+
+def write_output(output_file, az_conn_string, az_container, yaml_output, content):
+    if output_file == "-":
+        sys.stdout.write(content)
+    else:
+        if az_conn_string and az_container:
+            blob = BlobClient.from_connection_string(
+                conn_str=az_conn_string,
+                container_name=az_container,
+                blob_name=output_file,
+            )
+            content_type = "application/json"
+            if yaml_output:
+                content_type = "application/yaml"
+            content_settings = ContentSettings(content_type=content_type)
+            blob.upload_blob(
+                content.encode("utf-8"),
+                content_settings=content_settings,
+                overwrite=True,
+            )
+        else:
+            with open(output_file, "w") as f:
+                f.write(content)
 
 
 def get_sorting_value(layer, rules):
