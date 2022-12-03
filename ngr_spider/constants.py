@@ -1,5 +1,5 @@
 CSW_URL = "https://nationaalgeoregister.nl/geonetwork/srv/dut/csw"
-LOG_LEVEL = "INFO"
+LOG_LEVEL = "ERROR"
 WFS_PROTOCOL = "OGC:WFS"
 WMS_PROTOCOL = "OGC:WMS"
 WCS_PROTOCOL = "OGC:WCS"

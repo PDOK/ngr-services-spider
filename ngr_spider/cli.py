@@ -50,6 +50,7 @@ def main_services(args):
     az_container = args.azure_storage_container
     yaml_output = args.yaml
     no_updated = args.no_updated
+    jq_filter = args.jq_filter
 
     protocol_list = PROTOCOLS
     if protocols:
@@ -100,7 +101,7 @@ def main_services(args):
             }
 
         report_services_summary(services, protocol_list)
-        content = get_output(pretty, yaml_output, config, no_updated)
+        content = get_output(pretty, yaml_output, config, no_updated, jq_filter)
         write_output(output_file, az_conn_string, az_container, yaml_output, content)
 
         logging.info(f"output written to {output_file}")
@@ -121,6 +122,7 @@ def main_layers(args):
     az_conn_string = args.azure_storage_connection_string
     az_container = args.azure_storage_container
     no_updated = args.no_updated
+    jq_filter = args.jq_filter
 
     protocol_list = PROTOCOLS
     if protocols:
@@ -209,7 +211,7 @@ def main_layers(args):
             if not snake_case:
                 config = [replace_keys(x, convert_snake_to_camelcase) for x in layers]
 
-        content = get_output(pretty, yaml_output, config, no_updated)
+        content = get_output(pretty, yaml_output, config, no_updated, jq_filter)
         write_output(output_file, az_conn_string, az_container, yaml_output, content)
         lookup = {
             WMTS_PROTOCOL: "layers",
@@ -278,6 +280,13 @@ def main():
     )
 
     parent_parser.add_argument(
+        "--jq-filter",
+        action="store",
+        type=str,
+        help=f"Apply JQ filter to output",
+    )
+
+    parent_parser.add_argument(
         "--service-owner",
         action="store",
         type=str,
@@ -294,7 +303,6 @@ def main():
 
     parent_parser.add_argument(
         "--no-updated",
-        dest="snake_case",
         action="store_true",
         help="do not add updated field to output file",
     )
