@@ -11,6 +11,7 @@ from types import MethodType
 from typing import Optional, Union
 from urllib import parse
 
+import jq
 import requests
 import yaml
 from azure.storage.blob import BlobClient, ContentSettings
@@ -54,13 +55,22 @@ logging.basicConfig(
 
 
 def get_output(
-    pretty, yaml_output, config: dict[str, Union[str, list[dict]]], no_timestamp
+    pretty,
+    yaml_output,
+    config: dict[str, Union[str, list[dict]]],
+    no_timestamp,
+    jq_filter,
 ):
     if not no_timestamp:
         timestamp = (
             datetime.datetime.now().astimezone().replace(microsecond=0).isoformat()
         )
         config["updated"] = timestamp
+
+    if jq_filter:
+        transformed_config_text = jq.compile(jq_filter).input(config).text()
+        config = json.loads(transformed_config_text)
+
     if yaml_output:
         content = yaml.dump(config, default_flow_style=False)
     else:
