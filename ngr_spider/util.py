@@ -27,7 +27,7 @@ from ngr_spider.constants import (  # type: ignore
     WCS_PROTOCOL,
     WFS_PROTOCOL,
     WMS_PROTOCOL,
-    WMTS_PROTOCOL
+    WMTS_PROTOCOL,
 )
 
 from .models import (
@@ -43,7 +43,7 @@ from .models import (
     WmsService,
     WmsStyle,
     WmtsLayer,
-    WmtsService
+    WmtsService,
 )
 
 LOGGER = logging.getLogger(__name__)

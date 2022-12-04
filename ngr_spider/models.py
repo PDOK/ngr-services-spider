@@ -13,7 +13,7 @@ from ngr_spider.constants import (  # type: ignore
     WCS_PROTOCOL,
     WFS_PROTOCOL,
     WMS_PROTOCOL,
-    WMTS_PROTOCOL
+    WMTS_PROTOCOL,
 )
 from ngr_spider.decorators import nested_dataclass
 
@@ -322,6 +322,7 @@ def list_duplicates(seq):
 class CswServiceRecord(JSONWizard):
     title: str
     abstract: str
+    date_stamp: str
     use_limitation: str
     keywords: list[str]
     operates_on: str
@@ -355,6 +356,10 @@ class CswServiceRecord(JSONWizard):
             )
         )
         return f"{self.__class__.__name__}({dict_repr})"
+
+    def get_date_stamp(self):
+        xpath_query = f".//gmd:dateStamp/gco:Date/text()"
+        return self.get_text_xpath(xpath_query)
 
     def get_record_identifier(self):
         xpath_query = f".//gmd:fileIdentifier/gco:CharacterString/text()"
@@ -474,6 +479,7 @@ class CswServiceRecord(JSONWizard):
         self.root = etree.fromstring(xml, parser=parser)
         self.metadata_id = self.get_record_identifier()
         self.title = self.get_title()
+        self.date_stamp = self.get_date_stamp()
         self.abstract = self.get_abstract()
         self.use_limitation = self.get_use_limitation()
         # self.point_of_contact = self.get_point_of_contact()
