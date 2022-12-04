@@ -19,12 +19,11 @@ from owslib.csw import CatalogueServiceWeb  # type: ignore
 from owslib.wcs import WebCoverageService, wcs110  # type: ignore
 from owslib.wfs import WebFeatureService  # type: ignore
 from owslib.wms import WebMapService  # type: ignore
-from owslib.wmts import WebMapTileService  # type: ignore
+from owslib.wmts import WebMapTileService
 
 from ngr_spider.constants import (  # type: ignore
     ATOM_PROTOCOL,
     CSW_URL,
-    LOG_LEVEL,
     WCS_PROTOCOL,
     WFS_PROTOCOL,
     WMS_PROTOCOL,
@@ -34,7 +33,6 @@ from ngr_spider.constants import (  # type: ignore
 from .models import (
     AtomService,
     CswDatasetRecord,
-    CswListRecord,
     CswServiceRecord,
     Layer,
     Service,
@@ -48,10 +46,7 @@ from .models import (
     WmtsService
 )
 
-logging.basicConfig(
-    level=LOG_LEVEL,
-    format="%(asctime)s - %(levelname)s: %(message)s",
-)
+LOGGER = logging.getLogger(__name__)
 
 
 def get_output(
@@ -131,25 +126,21 @@ def join_lists_by_property(list_1, list_2, prop_name):
     return result
 
 
-def get_csw_results(query: str, maxresults: int = 0) -> list[CswListRecord]:
+def get_csw_records(query: str, maxresults: int = 0) -> list[CswServiceRecord]:
     csw = CatalogueServiceWeb(CSW_URL)
-    result = []
+    result: list[CswServiceRecord] = []
     start = 1
     maxrecord = maxresults if (maxresults < 100 and maxresults != 0) else 100
 
     while True:
-        csw.getrecords2(maxrecords=maxrecord, cql=query, startposition=start)
-        records = [
-            CswListRecord(
-                title=rec[1].title,
-                abstract=rec[1].abstract,
-                type=rec[1].type,
-                identifier=rec[1].identifier,
-                keywords=rec[1].subjects,
-                modified=rec[1].modified,
-            )
-            for rec in csw.records.items()
-        ]
+        csw.getrecords2(
+            maxrecords=maxrecord,
+            cql=query,
+            startposition=start,
+            esn="full",
+            outputschema="http://www.isotc211.org/2005/gmd",
+        )
+        records = [CswServiceRecord(rec[1].xml) for rec in csw.records.items()]
         result.extend(records)
         if (
             maxresults != 0 and len(result) >= maxresults
@@ -159,22 +150,19 @@ def get_csw_results(query: str, maxresults: int = 0) -> list[CswListRecord]:
             start = csw.results["nextrecord"]
             continue
         break
-    return result
+
+    filtered_services = filter_service_records(result)
+    return sorted(filtered_services, key=lambda x: x.title)
 
 
-def get_csw_results_by_id(id: str) -> list[CswListRecord]:
-    query = f"identifier='{id}'"
-    return get_csw_results(query)
-
-
-def get_csw_results_by_protocol(
+def get_csw_records_by_protocol(
     protocol: str, svc_owner: str, max_results: int = 0
-) -> list[CswListRecord]:
+) -> list[CswServiceRecord]:
     query = (
         f"type='service' AND organisationName='{svc_owner}' AND protocol='{protocol}'"
     )
-    records = get_csw_results(query, max_results)
-    logging.info(f"found {len(records)} {protocol} service metadata records")
+    records = get_csw_records(query, max_results)
+    LOGGER.info(f"found {len(records)} {protocol} service metadata records")
     return records
 
 
@@ -197,41 +185,6 @@ def get_dataset_metadata(md_id: str) -> Optional[CswDatasetRecord]:
         return result
     except KeyError:  # TODO: log missing dataset records
         return None
-
-
-def get_csw_service_records(record: CswListRecord) -> CswServiceRecord:
-    """Retrieve service metadata record for input["metadata_id"] en return title, protocol en service url
-
-    Args:
-        input (dict): dict containing "metadata_id" key and optional "protocol"
-
-    Returns:
-        ServiceMetadata
-    """
-    csw = CatalogueServiceWeb(CSW_URL)
-    csw.getrecordbyid(
-        id=[record.identifier], outputschema="http://www.isotc211.org/2005/gmd"
-    )
-    csw_record = csw.records[record.identifier]
-    service_metadata = CswServiceRecord(csw_record.xml)
-
-    if service_metadata.service_protocol != ATOM_PROTOCOL:
-        service_url = service_metadata.service_url
-        service_url = service_url.partition("?")[0]
-        protocol = service_metadata.service_protocol
-        query_param_svc_type = protocol.split(":")[1]
-        if (
-            "https://geodata.nationaalgeoregister.nl/tiles/service/wmts" in service_url
-        ):  # shorten paths, some wmts services have redundant path elements in service_url
-            service_url = "https://geodata.nationaalgeoregister.nl/tiles/service/wmts"
-        if service_url.endswith(
-            "/WMTSCapabilities.xml"
-        ):  # handle cases for restful wmts url, assume kvp variant is supported
-            service_url = service_url.replace("/WMTSCapabilities.xml", "")
-        service_metadata.service_url = (
-            f"{service_url}?request=GetCapabilities&service={query_param_svc_type}"
-        )
-    return service_metadata
 
 
 async def get_data_asynchronous(results, fun):
@@ -287,7 +240,7 @@ def get_wcs_service(
     try:
         url = service_record.service_url
         md_id = service_record.metadata_id
-        logging.info(f"{md_id} - {url}")
+        LOGGER.info(f"{md_id} - {url}")
         # monkeypatch OWS method to fix namespace issue
         # owslib is using a different namespace url than mapserver is in cap doc
         wcs110.Namespaces_1_1_0.OWS = MethodType(OWS, wcs110.Namespaces_1_1_0)
@@ -306,10 +259,10 @@ def get_wcs_service(
             dataset_metadata_id=service_record.dataset_metadata_id,
         )
     except requests.exceptions.HTTPError as e:
-        logging.error(f"md_id: {md_id} - {e}")
+        LOGGER.error(f"md_id: {md_id} - {e}")
     except Exception:
         message = f"exception while retrieving WCS cap for service md-identifier: {md_id}, url: {url}"
-        logging.exception(message)
+        LOGGER.exception(message)
     return ServiceError(service_record.service_url, service_record.metadata_id)
 
 
@@ -327,7 +280,7 @@ def get_wfs_service(
     try:
         url = service_record.service_url
         md_id = service_record.metadata_id
-        logging.info(f"{md_id} - {url}")
+        LOGGER.info(f"{md_id} - {url}")
         wfs = WebFeatureService(url, version="2.0.0")
         getfeature_op = next(
             (x for x in wfs.operations if x.name == "GetFeature"), None
@@ -343,15 +296,15 @@ def get_wfs_service(
             dataset_metadata_id=service_record.dataset_metadata_id,
         )
     except requests.exceptions.HTTPError as e:
-        logging.error(f"md-identifier: {md_id} - {e}")
+        LOGGER.error(f"md-identifier: {md_id} - {e}")
     except Exception:
         message = f"exception while retrieving WFS cap for service md-identifier: {md_id}, url: {url}"
-        logging.exception(message)
+        LOGGER.exception(message)
     return ServiceError(service_record.service_url, service_record.metadata_id)
 
 
 def get_md_id_from_url(url):
-    logging.debug(f"get_md_id_from_url url: {url}")
+    LOGGER.debug(f"get_md_id_from_url url: {url}")
     params = dict(parse.parse_qsl(parse.urlsplit(url).query))
     params = {k.lower(): v for k, v in params.items()}  # lowercase dict keys
     if "uuid" in params:
@@ -409,7 +362,7 @@ def get_wms_service(
             # this is a secure layer not for the general public: ignore
             # TODO: apply filtering elswhere
             return ServiceError(service_record.service_url, service_record.metadata_id)
-        logging.info(f"{service_record.metadata_id} - {service_record.service_url}")
+        LOGGER.info(f"{service_record.metadata_id} - {service_record.service_url}")
         wms = WebMapService(service_record.service_url, version="1.3.0")
         getmap_op = next((x for x in wms.operations if x.name == "GetMap"), None)
         layers = list(wms.contents)
@@ -424,10 +377,10 @@ def get_wms_service(
             dataset_metadata_id=service_record.dataset_metadata_id,
         )
     except requests.exceptions.HTTPError as e:
-        logging.error(f"md-identifier: {service_record.metadata_id} - {e}")
+        LOGGER.error(f"md-identifier: {service_record.metadata_id} - {e}")
     except Exception:
         message = f"exception while retrieving WMS cap for service md-identifier: {service_record.metadata_id}, url: {service_record.service_url}"
-        logging.exception(message)
+        LOGGER.exception(message)
     return ServiceError(service_record.service_url, service_record.metadata_id)
 
 
@@ -447,7 +400,7 @@ def get_wmts_service(
     try:
         url = service_record.service_url
         md_id = service_record.metadata_id
-        logging.info(f"{md_id} - {url}")
+        LOGGER.info(f"{md_id} - {url}")
         if "://secure" in url:
             # this is a secure layer not for the general public: ignore
             return service_record
@@ -463,10 +416,10 @@ def get_wmts_service(
         )
 
     except requests.exceptions.HTTPError as e:
-        logging.error(f"md-identifier: {md_id} - {e}")
+        LOGGER.error(f"md-identifier: {md_id} - {e}")
     except Exception:
         message = f"unexpected error occured while retrieving cap doc, md-identifier {md_id}, url: {url}"
-        logging.exception(message)
+        LOGGER.exception(message)
     return ServiceError(service_record.service_url, service_record.metadata_id)
 
 
@@ -535,17 +488,23 @@ def sort_flat_layers(layers, rules_path):
         for key in sorted(sorted_layer_dict.keys()):
             if len(sorted_layer_dict[key]) == 0:
                 rule = next(filter(lambda x: x["index"] == key, rules), None)
-                logging.info(f"no layers found for sorting rule: {rule}")
+                LOGGER.info(f"no layers found for sorting rule: {rule}")
             result += sorted_layer_dict[key]
         return result
 
 
-def get_csw_list_result(
+def get_csw_record_by_id(id: str) -> list[CswServiceRecord]:
+    query = f"identifier='{id}'"
+    result = get_csw_records(query)
+    return result
+
+
+def get_csw_records_by_protocols(
     protocol_list: list[str], svc_owner: str, number_records: int
-) -> list[CswListRecord]:
+) -> list[CswServiceRecord]:
     csw_results = list(
         map(
-            lambda x: get_csw_results_by_protocol(x, svc_owner, number_records),
+            lambda x: get_csw_records_by_protocol(x, svc_owner, number_records),
             protocol_list,
         )
     )
@@ -588,23 +547,12 @@ def filter_service_records(records: list[CswServiceRecord]) -> list[CswServiceRe
     return [value for _, value in new_dict.items()]
 
 
-def get_csw_services(list_records: list[CswListRecord]) -> list[CswServiceRecord]:
-    loop = asyncio.get_event_loop()
-    future = asyncio.ensure_future(
-        get_data_asynchronous(list_records, get_csw_service_records)
-    )
-    loop.run_until_complete(future)
-    services = future.result()
-    filtered_services = filter_service_records(services)
-    return sorted(filtered_services, key=lambda x: x.title)
-
-
 def report_services_summary(services: list[CswServiceRecord], protocol_list: list[str]):
     nr_services = len(services)
-    logging.info(f"indexed {nr_services} services")
+    LOGGER.info(f"indexed {nr_services} services")
     for prot in protocol_list:
         nr_services_prot = len([x for x in services if x.service_protocol == prot])
-        logging.info(f"indexed {prot} {nr_services_prot} services")
+        LOGGER.info(f"indexed {prot} {nr_services_prot} services")
 
 
 def convert_snake_to_camelcase(snake_str):
