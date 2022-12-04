@@ -7,7 +7,6 @@ from contextlib import nullcontext
 
 from ngr_spider.constants import (
     ATOM_PROTOCOL,
-    LOG_LEVEL,
     PROTOCOLS,
     WCS_PROTOCOL,
     WFS_PROTOCOL,
@@ -19,9 +18,8 @@ from ngr_spider.util import (  # type: ignore
     convert_snake_to_camelcase,
     flatten_service,
     get_csw_datasets,
-    get_csw_list_result,
-    get_csw_results_by_id,
-    get_csw_services,
+    get_csw_record_by_id,
+    get_csw_records_by_protocols,
     get_output,
     get_services,
     replace_keys,
@@ -30,12 +28,29 @@ from ngr_spider.util import (  # type: ignore
     write_output
 )
 
-from .models import AtomService, LayersMode, Service, ServiceError
+from .models import AtomService, LayersMode, LogLevel, Service, ServiceError
 
-logging.basicConfig(
-    level=LOG_LEVEL,
-    format="%(asctime)s - %(levelname)s: %(message)s",
-)
+# Typically make globals in CAPS to avoid name space problems.. per PEP-8
+LOGGER = None
+
+
+def setup_logger(loglevel: LogLevel):
+    global LOGGER
+    if loglevel == LogLevel.Error:
+        logging_loglevel = logging.ERROR
+    elif loglevel == LogLevel.Info:
+        logging_loglevel = logging.INFO
+    elif loglevel == LogLevel.Debug:
+        logging_loglevel = logging.DEBUG
+
+    LOGGER = logging.getLogger(__package__)
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter(
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
+    handler.setFormatter(formatter)
+    LOGGER.addHandler(handler)
+    LOGGER.setLevel(logging_loglevel)
 
 
 def main_services(args):
@@ -51,6 +66,9 @@ def main_services(args):
     yaml_output = args.yaml
     no_updated = args.no_updated
     jq_filter = args.jq_filter
+    log_level = args.log_level
+
+    setup_logger(log_level)
 
     protocol_list = PROTOCOLS
     if protocols:
@@ -62,9 +80,10 @@ def main_services(args):
     else:
         cm = nullcontext()
     with cm:
-        list_records = get_csw_list_result(protocol_list, svc_owner, number_records)
+        services = get_csw_records_by_protocols(
+            protocol_list, svc_owner, number_records
+        )
 
-        services = get_csw_services(list_records)
         services_dict = [asdict_minus_none(x) for x in services]
 
         if retrieve_dataset_metadata:
@@ -104,7 +123,7 @@ def main_services(args):
         content = get_output(pretty, yaml_output, config, no_updated, jq_filter)
         write_output(output_file, az_conn_string, az_container, yaml_output, content)
 
-        logging.info(f"output written to {output_file}")
+        LOGGER.info(f"output written to {output_file}")
 
 
 def main_layers(args):
@@ -123,7 +142,8 @@ def main_layers(args):
     az_container = args.azure_storage_container
     no_updated = args.no_updated
     jq_filter = args.jq_filter
-
+    log_level = args.log_level
+    setup_logger(log_level)
     protocol_list = PROTOCOLS
     if protocols:
         protocol_list = protocols.split(",")
@@ -136,11 +156,12 @@ def main_layers(args):
 
     with cm:
         if identifier:
-            service_ids = get_csw_results_by_id(identifier)
+            service_records = get_csw_record_by_id(identifier)
         else:
-            service_ids = get_csw_list_result(protocol_list, svc_owner, number_records)
+            service_records = get_csw_records_by_protocols(
+                protocol_list, svc_owner, number_records
+            )
 
-        service_records = get_csw_services(service_ids)
         services = get_services(service_records)
 
         service_errors: list[ServiceError] = [
@@ -204,7 +225,7 @@ def main_layers(args):
                 item for sublist in layers for item in sublist
             ]  # each services returns as a list of layers, flatten list, see https://stackoverflow.com/a/953097
             if sort:
-                logging.info(f"sorting services")
+                LOGGER.info(f"sorting services")
                 layers = sort_flat_layers(layers, sort)
 
             config = {"layers": layers}
@@ -223,15 +244,15 @@ def main_layers(args):
         total_nr_layers = sum(
             map(lambda x: len(x[lookup[x["protocol"]]]), succesful_services_dict)
         )
-        logging.info(
+        LOGGER.info(
             f"indexed {len(succesful_services_dict)} services with {total_nr_layers} layers/featuretypes/coverages"
         )
         if len(service_errors) > 0:
             service_errors_string = [f"{x.metadata_id}:{x.url}" for x in service_errors]
-            logging.info(f"failed to index {len(service_errors)} services")
+            LOGGER.info(f"failed to index {len(service_errors)} services")
             message = "\n".join(service_errors_string)
-            logging.info(f"failed service urls:\n{message}")
-        logging.info(f"output written to {output_file}")
+            LOGGER.info(f"failed service urls:\n{message}")
+        LOGGER.info(f"output written to {output_file}")
 
 
 def main():
@@ -299,6 +320,14 @@ def main():
         dest="snake_case",
         action="store_true",
         help="output snake_case attributes instead of camelCase",
+    )
+
+    parent_parser.add_argument(
+        "-l",
+        "--log-level",
+        type=LogLevel,
+        choices=list(LogLevel),
+        default=LogLevel.Info,
     )
 
     parent_parser.add_argument(

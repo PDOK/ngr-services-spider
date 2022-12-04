@@ -1,6 +1,5 @@
 import dataclasses
 import enum
-import logging
 from typing import Optional, Tuple
 from urllib import parse
 from urllib.parse import parse_qs, urlparse
@@ -27,6 +26,15 @@ def get_query_param_val(url, param_name):
         return ""
 
 
+class LogLevel(enum.Enum):
+    Error = "ERROR"
+    Info = "INFO"
+    Debug = "DEBUG"
+
+    def __str__(self):
+        return self.value
+
+
 class LayersMode(enum.Enum):
     Flat = "flat"
     Services = "services"
@@ -34,21 +42,6 @@ class LayersMode(enum.Enum):
 
     def __str__(self):
         return self.value
-
-
-def ExcludeIfNone(value):
-    """Do not include field for None values"""
-    return value is None
-
-
-@dataclasses.dataclass
-class CswListRecord:
-    title: str
-    abstract: str
-    type: str
-    identifier: str
-    keywords: list[str]
-    modified: str
 
 
 @dataclasses.dataclass
@@ -423,7 +416,7 @@ class CswServiceRecord(JSONWizard):
                             keywords_result[keyword_ns] = []
                         keywords_result[keyword_ns].append(keyword_val)
                     except IndexError:
-                        logging.error(
+                        L.error(
                             f"unexpected error while retrieving keyword for record {self.metadata_id}"
                         )
 
@@ -491,3 +484,22 @@ class CswServiceRecord(JSONWizard):
         self.service_url = self.get_service_url(service_el)
         self.service_protocol = self.get_service_protocol(service_el)
         self.service_description = self.get_service_description(service_el)
+
+        if self.service_protocol != ATOM_PROTOCOL:
+            service_url = self.service_url.partition("?")[0]
+            protocol = self.service_protocol
+            query_param_svc_type = protocol.split(":")[1]
+            if (
+                "https://geodata.nationaalgeoregister.nl/tiles/service/wmts"
+                in service_url
+            ):  # shorten paths, some wmts services have redundant path elements in service_url
+                service_url = (
+                    "https://geodata.nationaalgeoregister.nl/tiles/service/wmts"
+                )
+            if service_url.endswith(
+                "/WMTSCapabilities.xml"
+            ):  # handle cases for restful wmts url, assume kvp variant is supported
+                service_url = service_url.replace("/WMTSCapabilities.xml", "")
+            self.service_url = (
+                f"{service_url}?request=GetCapabilities&service={query_param_svc_type}"
+            )
