@@ -39,6 +39,7 @@ from .models import (
     ServiceError,
     WcsService,
     WfsService,
+    WmtsStyle,
     WmsLayer,
     WmsService,
     WmsStyle,
@@ -330,7 +331,7 @@ def get_wms_service(
             title: str = ""
             if "title" in style_obj:
                 title = style_obj["title"]
-            style = WmsStyle(title=title, name=style_name)
+            style = WmsStyle(title=title, name=style_name, legend_url=style_obj["legend"])
             styles.append(style)
         minscale = (
             wms[lyr].min_scale_denominator.text
@@ -388,12 +389,24 @@ def get_wmts_service(
     service_record: CswServiceRecord,
 ) -> Union[WmtsService, ServiceError]:
     def convert_layer(lyr) -> WmtsLayer:
+        styles: list[WmtsStyle] = []
+        for style_name in list(wmts[lyr].styles.keys()):
+            style_obj = wmts[lyr].styles[style_name]
+            title: str = ""
+            if "title" in style_obj:
+                title = style_obj["title"]
+            legend: str = ""
+            if "legend" in style_obj:
+                legend = style_obj["legend"]
+            style = WmtsStyle(title=title, name=style_name, legend_url=legend)
+            styles.append(style)
         return WmtsLayer(
             name=lyr,
             title=empty_string_if_none(wmts[lyr].title),
             abstract=empty_string_if_none(wmts[lyr].abstract),
             tilematrixsets=",".join(list(wmts[lyr].tilematrixsetlinks.keys())),
             imgformats=",".join(wmts[lyr].formats),
+            styles=styles,
             dataset_metadata_id=service_record.dataset_metadata_id,
         )
 

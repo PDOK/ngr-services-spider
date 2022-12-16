@@ -48,7 +48,13 @@ class LayersMode(enum.Enum):
 class WmsStyle:
     title: str
     name: str
+    legend_url: str = ""
 
+@dataclasses.dataclass
+class WmtsStyle:
+    title: str
+    name: str
+    legend_url: str = ""
 
 @dataclasses.dataclass
 class Layer:
@@ -68,6 +74,7 @@ class WmsLayer(Layer):
 
 @dataclasses.dataclass
 class WmtsLayer(Layer):
+    styles: list[WmtsStyle]
     tilematrixsets: str
     imgformats: str
 
