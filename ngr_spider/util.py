@@ -39,10 +39,9 @@ from .models import (
     ServiceError,
     WcsService,
     WfsService,
-    WmtsStyle,
+    Style,
     WmsLayer,
     WmsService,
-    WmsStyle,
     WmtsLayer,
     WmtsService,
 )
@@ -325,13 +324,16 @@ def get_wms_service(
     service_record: CswServiceRecord,
 ) -> Union[WmsService, ServiceError]:
     def convert_layer(lyr) -> WmsLayer:
-        styles: list[WmsStyle] = []
+        styles: list[Style] = []
         for style_name in list(wms[lyr].styles.keys()):
             style_obj = wms[lyr].styles[style_name]
             title: str = ""
             if "title" in style_obj:
                 title = style_obj["title"]
-            style = WmsStyle(title=title, name=style_name, legend_url=style_obj["legend"])
+            legend: str = ""
+            if "legend" in style_obj:
+                legend = style_obj["legend"]
+            style = Style(title=title, name=style_name, legend_url=legend)
             styles.append(style)
         minscale = (
             wms[lyr].min_scale_denominator.text
@@ -389,7 +391,7 @@ def get_wmts_service(
     service_record: CswServiceRecord,
 ) -> Union[WmtsService, ServiceError]:
     def convert_layer(lyr) -> WmtsLayer:
-        styles: list[WmtsStyle] = []
+        styles: list[Style] = []
         for style_name in list(wmts[lyr].styles.keys()):
             style_obj = wmts[lyr].styles[style_name]
             title: str = ""
@@ -398,7 +400,7 @@ def get_wmts_service(
             legend: str = ""
             if "legend" in style_obj:
                 legend = style_obj["legend"]
-            style = WmtsStyle(title=title, name=style_name, legend_url=legend)
+            style = Style(title=title, name=style_name, legend_url=legend)
             styles.append(style)
         return WmtsLayer(
             name=lyr,
