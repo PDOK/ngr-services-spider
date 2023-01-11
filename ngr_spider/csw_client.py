@@ -1,7 +1,9 @@
 import logging
 from typing import Optional
 
-from owslib.csw import CatalogueServiceWeb  # type: ignore
+from owslib.csw import CatalogueServiceWeb
+
+from ngr_spider.constants import OAT_PROTOCOL  # type: ignore
 from .models import CswDatasetRecord, CswServiceRecord
 
 LOGGER = logging.getLogger(__name__)
@@ -58,7 +60,12 @@ class CSWClient:
     def _get_csw_records_by_protocol(
         self, protocol: str, svc_owner: str, max_results: int = 0
     ) -> list[CswServiceRecord]:
-        query = f"type='service' AND organisationName='{svc_owner}' AND anyText='{protocol}'"
+
+        protocol_key = "protocol"
+        if protocol == OAT_PROTOCOL: # required since NGR does not support OGC API TILES as a seperate protocol
+            protocol_key= "anyText"
+            
+        query = f"type='service' AND organisationName='{svc_owner}' AND {protocol_key}='{protocol}'"
         records = self._get_csw_records(query, max_results)
         LOGGER.debug(f"query: {query}")
         LOGGER.info(f"found {len(records)} {protocol} service metadata records")

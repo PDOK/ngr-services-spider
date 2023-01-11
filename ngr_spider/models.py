@@ -14,6 +14,7 @@ from ngr_spider.constants import (  # type: ignore
     WFS_PROTOCOL,
     WMS_PROTOCOL,
     WMTS_PROTOCOL,
+    OAT_PROTOCOL,
 )
 from ngr_spider.decorators import nested_dataclass
 
@@ -65,6 +66,11 @@ class WmsLayer(Layer):
     crs: str
     minscale: str = ""
     maxscale: str = ""
+
+@dataclasses.dataclass
+class OatLayer(Layer):
+    styles: list[Style]
+    crs: str
 
 
 @dataclasses.dataclass
@@ -289,6 +295,10 @@ class WmsService(Service):
     layers: list[WmsLayer]
     protocol: str = WMS_PROTOCOL
 
+@dataclasses.dataclass(kw_only=True)
+class OatService(Service):
+    layers: list[OatLayer]
+    protocol: str = OAT_PROTOCOL
 
 @dataclasses.dataclass(kw_only=True)
 class WmtsService(Service):
@@ -438,7 +448,7 @@ class CswServiceRecord(JSONWizard):
         parsed_url = urlparse(operates_on_url.lower())
         try:
             return parse_qs(parsed_url.query)["id"][0]
-        except IndexError:
+        except (IndexError,KeyError):
             return ""
 
     def get_service_protocol(self, el):
