@@ -8,14 +8,13 @@ import re
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from types import MethodType
-from typing import Optional, Union
+from typing import Union
 from urllib import parse
 
 import jq
 import requests
 import yaml
 from azure.storage.blob import BlobClient, ContentSettings
-from owslib.csw import CatalogueServiceWeb  # type: ignore
 from owslib.wcs import WebCoverageService, wcs110  # type: ignore
 from owslib.wfs import WebFeatureService  # type: ignore
 from owslib.wms import WebMapService  # type: ignore
@@ -23,12 +22,12 @@ from owslib.wmts import WebMapTileService
 
 from ngr_spider.constants import (  # type: ignore
     ATOM_PROTOCOL,
-    CSW_URL,
     WCS_PROTOCOL,
     WFS_PROTOCOL,
     WMS_PROTOCOL,
     WMTS_PROTOCOL,
 )
+from ngr_spider.csw_client import CSWClient
 
 from .models import (
     AtomService,
@@ -37,9 +36,9 @@ from .models import (
     Layer,
     Service,
     ServiceError,
+    Style,
     WcsService,
     WfsService,
-    Style,
     WmsLayer,
     WmsService,
     WmtsLayer,
@@ -124,67 +123,6 @@ def join_lists_by_property(list_1, list_2, prop_name):
             d.update(dct)
         result.append(d)
     return result
-
-
-def get_csw_records(query: str, maxresults: int = 0) -> list[CswServiceRecord]:
-    csw = CatalogueServiceWeb(CSW_URL)
-    result: list[CswServiceRecord] = []
-    start = 1
-    maxrecord = maxresults if (maxresults < 100 and maxresults != 0) else 100
-
-    while True:
-        csw.getrecords2(
-            maxrecords=maxrecord,
-            cql=query,
-            startposition=start,
-            esn="full",
-            outputschema="http://www.isotc211.org/2005/gmd",
-        )
-        records = [CswServiceRecord(rec[1].xml) for rec in csw.records.items()]
-        result.extend(records)
-        if (
-            maxresults != 0 and len(result) >= maxresults
-        ):  # break only early when maxresults set
-            break
-        if csw.results["nextrecord"] != 0:
-            start = csw.results["nextrecord"]
-            continue
-        break
-
-    filtered_services = filter_service_records(result)
-    return sorted(filtered_services, key=lambda x: x.title)
-
-
-def get_csw_records_by_protocol(
-    protocol: str, svc_owner: str, max_results: int = 0
-) -> list[CswServiceRecord]:
-    query = (
-        f"type='service' AND organisationName='{svc_owner}' AND protocol='{protocol}'"
-    )
-    records = get_csw_records(query, max_results)
-    LOGGER.info(f"found {len(records)} {protocol} service metadata records")
-    return records
-
-
-def get_record_by_id(metadata_id: str):
-    csw = CatalogueServiceWeb(CSW_URL)
-    csw.getrecordbyid(id=[metadata_id])
-    return csw.records[metadata_id]
-
-
-def get_dataset_metadata(md_id: str) -> Optional[CswDatasetRecord]:
-    csw = CatalogueServiceWeb(CSW_URL)
-    csw.getrecordbyid(id=[md_id], outputschema="http://www.isotc211.org/2005/gmd")
-    try:
-        record = csw.records[md_id]
-        result = CswDatasetRecord(
-            title=record.identification.title,
-            abstract=record.identification.abstract,
-            metadata_id=md_id,
-        )
-        return result
-    except KeyError:  # TODO: log missing dataset records
-        return None
 
 
 async def get_data_asynchronous(results, fun):
@@ -508,26 +446,6 @@ def sort_flat_layers(layers, rules_path):
         return result
 
 
-def get_csw_record_by_id(id: str) -> list[CswServiceRecord]:
-    query = f"identifier='{id}'"
-    result = get_csw_records(query)
-    return result
-
-
-def get_csw_records_by_protocols(
-    protocol_list: list[str], svc_owner: str, number_records: int
-) -> list[CswServiceRecord]:
-    csw_results = list(
-        map(
-            lambda x: get_csw_records_by_protocol(x, svc_owner, number_records),
-            protocol_list,
-        )
-    )
-    return [
-        item for sublist in csw_results for item in sublist
-    ]  # flatten list of lists
-
-
 def get_services(
     service_records: list[CswServiceRecord],
 ) -> list[Union[Service, ServiceError]]:
@@ -538,10 +456,12 @@ def get_services(
     return services_list
 
 
-def get_csw_datasets(dataset_ids: list[str]) -> list[CswDatasetRecord]:
+def get_csw_datasets(
+    client: CSWClient, dataset_ids: list[str]
+) -> list[CswDatasetRecord]:
     loop = asyncio.get_event_loop()
     future = asyncio.ensure_future(
-        get_data_asynchronous(dataset_ids, get_dataset_metadata)
+        get_data_asynchronous(dataset_ids, client.get_dataset_metadata)
     )
     loop.run_until_complete(future)
     datasets: list[CswDatasetRecord] = future.result()
@@ -549,17 +469,6 @@ def get_csw_datasets(dataset_ids: list[str]) -> list[CswDatasetRecord]:
         filter(None, datasets)
     )  # filter out empty datasets, happens when an expected dataset metadatarecords is not present in NGR
     return datasets
-
-
-def filter_service_records(records: list[CswServiceRecord]) -> list[CswServiceRecord]:
-    filtered_records = filter(
-        lambda x: x.service_url != "", records
-    )  # filter out results without serviceurl
-    # delete duplicate service entries, some service endpoint have multiple service records
-    # so last record in get_record_results will be retained in case of duplicate
-    # since it will be inserted in new_dict last
-    new_dict: dict[str, CswServiceRecord] = {x.service_url: x for x in filtered_records}
-    return [value for _, value in new_dict.items()]
 
 
 def report_services_summary(services: list[CswServiceRecord], protocol_list: list[str]):

@@ -3,7 +3,7 @@
 set -euo pipefail
 
 output_file="$1"
-nr_of_services=${2:--}
+nr_of_services=${2:--} # configure nr of services to index, for debugging
 
 output_dir=$(dirname "$(realpath "$output_file")")
 spider_output=/output_dir/$(basename "$output_file")
@@ -39,6 +39,7 @@ nr_svc_flag=""
 if [[ $nr_of_services != "-" ]];then
   nr_svc_flag="-n ${nr_of_services}"
 fi
+
 docker run -v "/${output_dir}:/output_dir" -v /tmp:/tmp pdok/ngr-services-spider layers $nr_svc_flag --snake-case -s /tmp/sorting-rules.json -m flat -p OGC:WMS,OGC:WFS,OGC:WCS,OGC:WMTS "$spider_output" --jq-filter '.layers[] |= with_entries(
   if .key == "service_protocol" then 
     .value = (.value | split(":")[1] | ascii_downcase) | .key = "service_type" 
