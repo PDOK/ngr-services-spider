@@ -58,7 +58,7 @@ class CSWClient:
     def _get_csw_records_by_protocol(
         self, protocol: str, svc_owner: str, max_results: int = 0
     ) -> list[CswServiceRecord]:
-        query = f"type='service' AND organisationName='{svc_owner}' AND anyText='{protocol}'"
+        query = f"type='service' AND organisationName='{svc_owner}' AND protocol='{protocol}'"
         records = self._get_csw_records(query, max_results)
         LOGGER.debug(f"query: {query}")
         LOGGER.info(f"found {len(records)} {protocol} service metadata records")
