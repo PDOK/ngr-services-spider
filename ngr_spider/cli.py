@@ -7,19 +7,19 @@ from contextlib import nullcontext
 
 from ngr_spider.constants import (
     ATOM_PROTOCOL,
+    CSW_URL,
     PROTOCOLS,
     WCS_PROTOCOL,
     WFS_PROTOCOL,
     WMS_PROTOCOL,
     WMTS_PROTOCOL,
 )
+from ngr_spider.csw_client import CSWClient
 from ngr_spider.decorators import asdict_minus_none
 from ngr_spider.util import (  # type: ignore
     convert_snake_to_camelcase,
     flatten_service,
     get_csw_datasets,
-    get_csw_record_by_id,
-    get_csw_records_by_protocols,
     get_output,
     get_services,
     replace_keys,
@@ -67,8 +67,10 @@ def main_services(args):
     no_updated = args.no_updated
     jq_filter = args.jq_filter
     log_level = args.log_level
-
+    csw_url = args.csw_url
     setup_logger(log_level)
+
+    csw_client = CSWClient(csw_url)
 
     protocol_list = PROTOCOLS
     if protocols:
@@ -80,7 +82,7 @@ def main_services(args):
     else:
         cm = nullcontext()
     with cm:
-        services = get_csw_records_by_protocols(
+        services = csw_client.get_csw_records_by_protocols(
             protocol_list, svc_owner, number_records
         )
 
@@ -88,7 +90,7 @@ def main_services(args):
 
         if retrieve_dataset_metadata:
             dataset_ids = list(set([x.dataset_metadata_id for x in services]))
-            datasets = get_csw_datasets(dataset_ids)
+            datasets = get_csw_datasets(csw_client, dataset_ids)
 
             datasets_dict = [asdict_minus_none(x) for x in datasets]
 
@@ -145,6 +147,9 @@ def main_layers(args):
     log_level = args.log_level
     setup_logger(log_level)
     protocol_list = PROTOCOLS
+
+    csw_client = CSWClient(CSW_URL)
+
     if protocols:
         protocol_list = protocols.split(",")
 
@@ -156,9 +161,9 @@ def main_layers(args):
 
     with cm:
         if identifier:
-            service_records = get_csw_record_by_id(identifier)
+            service_records = csw_client.get_csw_record_by_id(identifier)
         else:
-            service_records = get_csw_records_by_protocols(
+            service_records = csw_client.get_csw_records_by_protocols(
                 protocol_list, svc_owner, number_records
             )
 
@@ -192,7 +197,7 @@ def main_layers(args):
                 )
 
             dataset_ids = list(set([x.dataset_metadata_id for x in succesful_services]))
-            datasets = get_csw_datasets(dataset_ids)
+            datasets = get_csw_datasets(csw_client, dataset_ids)
 
             datasets_dict = [asdict_minus_none(x) for x in datasets]
             succesful_services_dict = [asdict_minus_none(x) for x in succesful_services]
@@ -227,7 +232,7 @@ def main_layers(args):
             if sort:
                 LOGGER.info(f"sorting services")
                 layers = sort_flat_layers(layers, sort)
-                
+
             if not snake_case:
                 layers = [replace_keys(x, convert_snake_to_camelcase) for x in layers]
             config = {"layers": layers}
@@ -284,6 +289,15 @@ def main():
         type=str,
         default="",
         help=f'service protocols (types) to query, comma-separated, values: {", ".join(PROTOCOLS)}',
+    )
+
+    parent_parser.add_argument(
+        "-c",
+        "--csw-url",
+        action="store",
+        type=str,
+        default=CSW_URL,
+        help=f"CSW base url, defaults to `{CSW_URL}`",
     )
 
     parent_parser.add_argument(

@@ -50,6 +50,7 @@ class Style:
     name: str
     legend_url: str = ""
 
+
 @dataclasses.dataclass
 class Layer:
     name: str
@@ -492,7 +493,12 @@ class CswServiceRecord(JSONWizard):
         self.service_protocol = self.get_service_protocol(service_el)
         self.service_description = self.get_service_description(service_el)
 
-        if self.service_protocol != ATOM_PROTOCOL:
+        if self.service_protocol in [
+            WMS_PROTOCOL,
+            WFS_PROTOCOL,
+            WCS_PROTOCOL,
+            WMTS_PROTOCOL,
+        ]:
             service_url = self.service_url.partition("?")[0]
             protocol = self.service_protocol
             query_param_svc_type = protocol.split(":")[1]
