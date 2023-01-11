@@ -227,10 +227,10 @@ def main_layers(args):
             if sort:
                 LOGGER.info(f"sorting services")
                 layers = sort_flat_layers(layers, sort)
-
-            config = {"layers": layers}
+                
             if not snake_case:
-                config = [replace_keys(x, convert_snake_to_camelcase) for x in layers]
+                layers = [replace_keys(x, convert_snake_to_camelcase) for x in layers]
+            config = {"layers": layers}
 
         content = get_output(pretty, yaml_output, config, no_updated, jq_filter)
         write_output(output_file, az_conn_string, az_container, yaml_output, content)
