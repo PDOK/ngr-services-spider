@@ -3,6 +3,7 @@ import enum
 from typing import Optional, Tuple
 from urllib import parse
 from urllib.parse import parse_qs, urlparse
+import logging
 
 import requests
 from dataclass_wizard import JSONWizard  # type: ignore
@@ -18,6 +19,7 @@ from ngr_spider.constants import (  # type: ignore
 )
 from ngr_spider.decorators import nested_dataclass
 
+LOGGER = logging.getLogger(__name__)
 
 def get_query_param_val(url, param_name):
     try:
@@ -433,7 +435,7 @@ class CswServiceRecord(JSONWizard):
                             keywords_result[keyword_ns] = []
                         keywords_result[keyword_ns].append(keyword_val)
                     except IndexError:
-                        L.error(
+                        LOGGER.error(
                             f"unexpected error while retrieving keyword for record {self.metadata_id}"
                         )
 
