@@ -80,6 +80,7 @@ def write_output(output_file, az_conn_string, az_container, yaml_output, content
         sys.stdout.write(content)
     else:
         if az_conn_string and az_container:
+            LOGGER.info(f"write result to Azure Blob Storage")
             blob = BlobClient.from_connection_string(
                 conn_str=az_conn_string,
                 container_name=az_container,
@@ -95,6 +96,7 @@ def write_output(output_file, az_conn_string, az_container, yaml_output, content
                 overwrite=True,
             )
         else:
+            LOGGER.info(f"write result to local file system")
             with open(output_file, "w") as f:
                 f.write(content)
 
