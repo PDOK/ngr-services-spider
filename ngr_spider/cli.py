@@ -67,6 +67,7 @@ def main_services(args):
     no_updated = args.no_updated
     jq_filter = args.jq_filter
     log_level = args.log_level
+    no_filter = args.no_filter
     csw_url = args.csw_url
     setup_logger(log_level)
 
@@ -83,8 +84,8 @@ def main_services(args):
         cm = nullcontext()
     with cm:
         services = csw_client.get_csw_records_by_protocols(
-            protocol_list, svc_owner, number_records
-        )
+            protocol_list, svc_owner, number_records, no_filter
+        )  # TODO: refactor to match implementation here with in main_layers(), so no-filter can also be used on layers
 
         services_dict = [asdict_minus_none(x) for x in services]
 
@@ -376,6 +377,14 @@ def main():
         "--dataset-md",
         action="store_true",
         help="group services/layers by dataset and retrieve dataset metadata",
+    )
+
+    services_parser.add_argument(
+        "--no-filter",
+        dest="no_filter",
+        action="store_true",
+        default=False,
+        help="Do not filter out services records with duplicate or empty service URLS",
     )
 
     layers_parser = subparsers.add_parser(

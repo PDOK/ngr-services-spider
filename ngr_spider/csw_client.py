@@ -2,6 +2,7 @@ import logging
 from typing import Optional
 
 from owslib.csw import CatalogueServiceWeb  # type: ignore
+
 from .models import CswDatasetRecord, CswServiceRecord
 
 LOGGER = logging.getLogger(__name__)
@@ -26,7 +27,7 @@ class CSWClient:
         return [value for _, value in new_dict.items()]
 
     def _get_csw_records(
-        self, query: str, maxresults: int = 0
+        self, query: str, maxresults: int = 0, no_filter: bool = False
     ) -> list[CswServiceRecord]:
         csw = CatalogueServiceWeb(self.csw_url)
         result: list[CswServiceRecord] = []
@@ -51,15 +52,20 @@ class CSWClient:
                 start = csw.results["nextrecord"]
                 continue
             break
-
-        filtered_services = self._filter_service_records(result)
-        return sorted(filtered_services, key=lambda x: x.title)
+        result_out: list[CswServiceRecord] = result
+        if not no_filter:
+            result_out = self._filter_service_records(result)
+        return sorted(result_out, key=lambda x: x.title)
 
     def _get_csw_records_by_protocol(
-        self, protocol: str, svc_owner: str, max_results: int = 0
+        self,
+        protocol: str,
+        svc_owner: str,
+        max_results: int = 0,
+        no_filter: bool = False,
     ) -> list[CswServiceRecord]:
         query = f"type='service' AND organisationName='{svc_owner}' AND protocol='{protocol}'"
-        records = self._get_csw_records(query, max_results)
+        records = self._get_csw_records(query, max_results, no_filter)
         LOGGER.debug(f"query: {query}")
         LOGGER.info(f"found {len(records)} {protocol} service metadata records")
         return records
@@ -84,12 +90,16 @@ class CSWClient:
         return result
 
     def get_csw_records_by_protocols(
-        self, protocol_list: list[str], svc_owner: str, number_records: int
+        self,
+        protocol_list: list[str],
+        svc_owner: str,
+        number_records: int,
+        no_filter: bool = False,
     ) -> list[CswServiceRecord]:
         csw_results = list(
             map(
                 lambda x: self._get_csw_records_by_protocol(
-                    x, svc_owner, number_records
+                    x, svc_owner, number_records, no_filter
                 ),
                 protocol_list,
             )
