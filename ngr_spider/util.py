@@ -19,6 +19,7 @@ from owslib.wcs import WebCoverageService, wcs110  # type: ignore
 from owslib.wfs import WebFeatureService  # type: ignore
 from owslib.wms import WebMapService  # type: ignore
 from owslib.wmts import WebMapTileService
+from ngr_spider.ogc_api_tiles import OGCApiTiles
 
 from ngr_spider.constants import (  # type: ignore
     ATOM_PROTOCOL,
@@ -26,6 +27,7 @@ from ngr_spider.constants import (  # type: ignore
     WFS_PROTOCOL,
     WMS_PROTOCOL,
     WMTS_PROTOCOL,
+    OAT_PROTOCOL,
 )
 from ngr_spider.csw_client import CSWClient
 
@@ -43,6 +45,7 @@ from .models import (
     WmsService,
     WmtsLayer,
     WmtsService,
+    OatService,
 )
 
 LOGGER = logging.getLogger(__name__)
@@ -154,6 +157,8 @@ def get_service(service_record: CswServiceRecord) -> Union[Service, ServiceError
         service = get_wmts_service(service_record)
     elif protocol == ATOM_PROTOCOL:
         service = get_atom_service(service_record)
+    elif protocol == OAT_PROTOCOL:
+        service = get_oat_service(service_record)
     return service
 
 
@@ -257,6 +262,33 @@ def get_atom_service(
     r = requests.get(service_record.service_url)
     return AtomService(service_record.service_url, r.text)
 
+def get_oat_service(
+        service_record: CswServiceRecord,
+) -> Union[OatService, ServiceError]:
+    try:
+        url = service_record.service_url
+        md_id = service_record.metadata_id
+        LOGGER.info(f"{md_id} - {url}")
+        if "://secure" in url:
+            # this is a secure layer not for the general public: ignore
+            return service_record
+        oat = OGCApiTiles(url)
+        return OatService(
+            # http://docs.ogc.org/DRAFTS/19-072.html#rc_landing-page-section
+            title=empty_string_if_none(oat.service_desc.get_info().title), # info gebruiken als backup voor title
+            abstract=empty_string_if_none(oat.service_desc.get_info().description), # desc niet uit info halen
+            metadata_id=md_id,
+            url=oat.service_desc.get_tile_request_url(),
+            layers=oat.get_layers(),
+            keywords=oat.service_desc.get_tags(),
+            dataset_metadata_id=service_record.dataset_metadata_id,
+        )
+    except requests.exceptions.HTTPError as e:
+        LOGGER.error(f"md-identifier: {md_id} - {e}")
+    except Exception:
+        message = f"unexpected error occured while retrieving cap doc, md-identifier {md_id}, url: {url}"
+        LOGGER.exception(message)
+    return ServiceError(service_record.service_url, service_record.metadata_id)
 
 def get_wms_service(
     service_record: CswServiceRecord,

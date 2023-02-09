@@ -53,6 +53,10 @@ class Style:
     name: str
     legend_url: str = ""
 
+@dataclasses.dataclass
+class VectorTileStyle:
+    name: str
+    url: str
 
 @dataclasses.dataclass
 class Layer:
@@ -71,8 +75,10 @@ class WmsLayer(Layer):
 
 @dataclasses.dataclass
 class OatLayer(Layer):
-    styles: list[Style]
+    styles: list[VectorTileStyle]
     crs: str
+    minscale: str = ""
+    maxscale: str = ""
 
 
 @dataclasses.dataclass
