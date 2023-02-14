@@ -74,21 +74,25 @@ class OGCApiTiles:
     tiles: Tiles
     tile_matrix_sets: TileMatrixSets
 
+    title: str
+    description: str
+
     def __init__(self, url):
         self.service_url = url
         self.__load_landing_page(url)
 
     # https://docs.mapbox.com/mapbox-gl-js/style-spec/sources/#vector
     def get_layers(self):
-        service_layer_name: str # technical name ?
-        service_layer_title: str = "" # display name ?
-        service_layer_abstract: str # ?
+        service_layer_name: str
+        service_layer_title: str = ""
+        service_layer_abstract: str
         service_layer_crs: str = ""
         service_layer_min_scale: str = ""
         service_layer_max_scale: str = ""
         service_data_type: str
 
         # process styles
+        # TODO style should be generated based on the type of the tiles; png, Vector etc.
         vector_tile_styles: [VectorTileStyle] = self.get_styles()
 
         # process min/max resolution
@@ -104,17 +108,16 @@ class OGCApiTiles:
         for tile_set in tile_sets:
             layer_tile_matrix_set_id = tile_set["tileMatrixSetId"]
             if layer_tile_matrix_set_id in layer_tile_set_matrix:
-                # TODO https://docs.kadaster.nl/ggc/ggs-ggc-library/algemeen/scale-set/
+                # https://docs.kadaster.nl/ggc/ggs-ggc-library/algemeen/scale-set/
                 service_layer_min_scale = layer_tile_set_matrix[layer_tile_matrix_set_id]
             service_layer_crs = tile_set["crs"]
             service_layer_title = tile_set["title"]
             t_links = tile_set["links"]
-            for l in t_links: # href uit de
+            for l in t_links:
                 if l["rel"] == "self":
                     with urllib.request.urlopen(l["href"]) as url:
                         tile = json.load(url)
                         service_layer_title = tile["title"]
-                        # datatype vector op laag niveau, niet mogelijk in GGC component
                         self.service_type = tile["dataType"]
 
         return [OatLayer(service_layer_name,
@@ -138,6 +141,8 @@ class OGCApiTiles:
                     self.tiles = Tiles(link["href"])
                 elif link["rel"] == "tileMatrixSets":
                     self.tile_matrix_sets = TileMatrixSets(link["href"])
+            self.title = json.load(url)["title"] if json.load(url)["title"] is not None else ""
+            self.description = json.load(url)["description"] if json.load(url)["description"] is not None else ""
 
     def get_styles(self):
         styles: [VectorTileStyle] = []
@@ -152,7 +157,7 @@ class OGCApiTiles:
                 sr = link["rel"]
                 if sr == "stylesheet":
                     style_stylesheet = link["href"]
-            s = VectorTileStyle(style["title"], style_stylesheet) # checken of het vectortiles zijn
+            s = VectorTileStyle(style["title"], style_stylesheet)
             if len(default_style_name) > 0:
                 styles.insert(0, s)  # insert as first element if it is default
             else:

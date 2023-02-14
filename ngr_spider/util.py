@@ -273,10 +273,16 @@ def get_oat_service(
             # this is a secure layer not for the general public: ignore
             return service_record
         oat = OGCApiTiles(url)
+        title = oat.title
+        if title is "": # fallback
+            title = empty_string_if_none(oat.service_desc.get_info().title)
+        description = oat.description
+        if description is "": # fallback
+            description = empty_string_if_none(oat.service_desc.get_info().description)
         return OatService(
             # http://docs.ogc.org/DRAFTS/19-072.html#rc_landing-page-section
-            title=empty_string_if_none(oat.service_desc.get_info().title), # info gebruiken als backup voor title
-            abstract=empty_string_if_none(oat.service_desc.get_info().description), # desc niet uit info halen
+            title=title,
+            abstract=description,
             metadata_id=md_id,
             url=oat.service_desc.get_tile_request_url(),
             layers=oat.get_layers(),
