@@ -13,6 +13,7 @@ from ngr_spider.constants import (
     WFS_PROTOCOL,
     WMS_PROTOCOL,
     WMTS_PROTOCOL,
+    OAT_PROTOCOL,
 )
 from ngr_spider.csw_client import CSWClient
 from ngr_spider.decorators import asdict_minus_none
@@ -146,10 +147,11 @@ def main_layers(args):
     no_updated = args.no_updated
     jq_filter = args.jq_filter
     log_level = args.log_level
+    csw_url = args.csw_url
     setup_logger(log_level)
     protocol_list = PROTOCOLS
 
-    csw_client = CSWClient(CSW_URL)
+    csw_client = CSWClient(csw_url)
 
     if protocols:
         protocol_list = protocols.split(",")
@@ -241,6 +243,7 @@ def main_layers(args):
         content = get_output(pretty, yaml_output, config, no_updated, jq_filter)
         write_output(output_file, az_conn_string, az_container, yaml_output, content)
         lookup = {
+            OAT_PROTOCOL: "layers",
             WMTS_PROTOCOL: "layers",
             WMS_PROTOCOL: "layers",
             WFS_PROTOCOL: "featuretypes",
