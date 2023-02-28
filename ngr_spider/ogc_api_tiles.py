@@ -95,9 +95,6 @@ class OGCApiTiles:
         # TODO style should be generated based on the type of the tiles; png, Vector etc.
         vector_tile_styles: [VectorTileStyle] = self.get_styles()
 
-        # process min/max resolution
-        layer_tile_set_matrix = self.get_tile_matrix_sets()
-
         # process layers
         tiles_json = self.tiles.json
 
@@ -106,10 +103,6 @@ class OGCApiTiles:
 
         tile_sets = tiles_json["tilesets"]
         for tile_set in tile_sets:
-            layer_tile_matrix_set_id = tile_set["tileMatrixSetId"]
-            if layer_tile_matrix_set_id in layer_tile_set_matrix:
-                # https://docs.kadaster.nl/ggc/ggs-ggc-library/algemeen/scale-set/
-                service_layer_min_scale = layer_tile_set_matrix[layer_tile_matrix_set_id]
             service_layer_crs = tile_set["crs"]
             service_layer_title = tile_set["title"]
             t_links = tile_set["links"]
