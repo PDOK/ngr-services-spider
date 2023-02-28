@@ -264,8 +264,9 @@ def get_atom_service(
     r = requests.get(service_record.service_url)
     return AtomService(service_record.service_url, r.text)
 
+
 def get_oat_service(
-        service_record: CswServiceRecord,
+    service_record: CswServiceRecord,
 ) -> Union[OatService, ServiceError]:
     try:
         url = service_record.service_url
@@ -276,10 +277,10 @@ def get_oat_service(
             return service_record
         oat = OGCApiTiles(url)
         title = oat.title
-        if title is "": # fallback
+        if title == "":  # fallback
             title = empty_string_if_none(oat.service_desc.get_info().title)
         description = oat.description
-        if description is "": # fallback
+        if description == "":  # fallback
             description = empty_string_if_none(oat.service_desc.get_info().description)
         return OatService(
             # http://docs.ogc.org/DRAFTS/19-072.html#rc_landing-page-section
@@ -297,6 +298,7 @@ def get_oat_service(
         message = f"unexpected error occured while retrieving cap doc, md-identifier {md_id}, url: {url}"
         LOGGER.exception(message)
     return ServiceError(service_record.service_url, service_record.metadata_id)
+
 
 def get_wms_service(
     service_record: CswServiceRecord,
