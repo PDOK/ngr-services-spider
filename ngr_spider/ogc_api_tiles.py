@@ -5,12 +5,13 @@ from .models import VectorTileStyle, OatLayer
 
 LOGGER = logging.getLogger(__name__)
 
+
 class Info:
     description: str
     title: str
     version: str
 
-    def __init__(self, data: []):
+    def __init__(self, data: dict):
         self.description = data["description"]
         self.title = data["title"]
         self.version = data["version"]
@@ -18,7 +19,6 @@ class Info:
 
 
 class ServiceDesc:
-    json: []
     def __init__(self, href: str):
         with urllib.request.urlopen(href) as url:
             self.json = json.load(url)
@@ -32,7 +32,7 @@ class ServiceDesc:
     def get_servers(self):
         return self.json["servers"]
 
-    def __get_url_from_servers(self, servers: []):
+    def __get_url_from_servers(self, servers: list[str]):
         for server in servers:
             if len(server["url"]) > 0:
                 return server["url"]
@@ -40,25 +40,30 @@ class ServiceDesc:
     def get_tile_request_url(self):
         paths = self.json["paths"]
         for path in paths:
-            if "{tileMatrixSetId}" in path and "{tileMatrix}" in path and "{tileRow}" in path and "{tileCol}" in path:
-                return self.__get_url_from_servers(self.get_servers()) + path # kijken in de spec of service url altijd goed is
+            if (
+                "{tileMatrixSetId}" in path
+                and "{tileMatrix}" in path
+                and "{tileRow}" in path
+                and "{tileCol}" in path
+            ):
+                return (
+                    self.__get_url_from_servers(self.get_servers()) + path
+                )  # kijken in de spec of service url altijd goed is
+
 
 class Data:
-    json: []
     def __init__(self, href: str):
         with urllib.request.urlopen(href) as url:
             self.json = json.load(url)
 
 
 class Tiles:
-    json: []
     def __init__(self, href: str):
         with urllib.request.urlopen(href) as url:
             self.json = json.load(url)
 
 
 class TileMatrixSets:
-    json: []
     def __init__(self, href: str):
         with urllib.request.urlopen(href) as url:
             self.json = json.load(url)
@@ -93,7 +98,10 @@ class OGCApiTiles:
 
         # process styles
         # TODO style should be generated based on the type of the tiles; png, Vector etc.
-        vector_tile_styles: [VectorTileStyle] = self.get_styles()
+        vector_tile_styles: list[VectorTileStyle] = self.get_styles()
+
+        # process min/max resolution
+        layer_tile_set_matrix = self.get_tile_matrix_sets()
 
         # process layers
         tiles_json = self.tiles.json
@@ -103,8 +111,15 @@ class OGCApiTiles:
 
         tile_sets = tiles_json["tilesets"]
         for tile_set in tile_sets:
+            layer_tile_matrix_set_id = tile_set["tileMatrixSetId"]
+            if layer_tile_matrix_set_id in layer_tile_set_matrix:
+                # https://docs.kadaster.nl/ggc/ggs-ggc-library/algemeen/scale-set/
+                service_layer_min_scale = layer_tile_set_matrix[
+                    layer_tile_matrix_set_id
+                ]
             service_layer_crs = tile_set["crs"]
-            service_layer_title = tile_set["title"]
+
+            service_layer_title = tile_set["title"] if "title" in tile_set else ""
             t_links = tile_set["links"]
             for l in t_links:
                 if l["rel"] == "self":
@@ -113,18 +128,25 @@ class OGCApiTiles:
                         service_layer_title = tile["title"]
                         self.service_type = tile["dataType"]
 
-        return [OatLayer(service_layer_name,
-                         service_layer_title,
-                         service_layer_abstract,
-                         "",
-                         vector_tile_styles,
-                         service_layer_crs,
-                         service_layer_min_scale,
-                         service_layer_max_scale)]
+        return [
+            OatLayer(
+                service_layer_name,
+                service_layer_title,
+                service_layer_abstract,
+                "",
+                vector_tile_styles,
+                service_layer_crs,
+                service_layer_min_scale,
+                service_layer_max_scale,
+            )
+        ]
 
     def __load_landing_page(self, service_url: str):
-        with urllib.request.urlopen(service_url) as url:
-            links = json.load(url)["links"]
+        with urllib.request.urlopen(service_url) as response:
+            response_body = response.read().decode("utf-8")
+            response_body_data = json.loads(response_body)
+
+            links = response_body_data["links"]
             for link in links:
                 if link["rel"] == "service-desc":
                     self.service_desc = ServiceDesc(link["href"])
@@ -134,11 +156,13 @@ class OGCApiTiles:
                     self.tiles = Tiles(link["href"])
                 elif link["rel"] == "tileMatrixSets":
                     self.tile_matrix_sets = TileMatrixSets(link["href"])
-            self.title = json.load(url)["title"] if json.load(url)["title"] is not None else ""
-            self.description = json.load(url)["description"] if json.load(url)["description"] is not None else ""
+            title = response_body_data["title"]
+            self.title = title if title else ""
+            description = response_body_data["description"]
+            self.description = description if description else ""
 
     def get_styles(self):
-        styles: [VectorTileStyle] = []
+        styles: list[VectorTileStyle] = []
         data = self.data.json
         default_style_name: str = ""
         if data["default"] is not None:
