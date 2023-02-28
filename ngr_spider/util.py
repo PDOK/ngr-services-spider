@@ -282,13 +282,18 @@ def get_oat_service(
         description = oat.description
         if description == "":  # fallback
             description = empty_string_if_none(oat.service_desc.get_info().description)
+
+        layers = oat.get_layers()
+        for layer in layers:
+            layer.dataset_metadata_id = service_record.dataset_metadata_id
+
         return OatService(
             # http://docs.ogc.org/DRAFTS/19-072.html#rc_landing-page-section
             title=title,
             abstract=description,
             metadata_id=md_id,
             url=oat.service_desc.get_tile_request_url(),
-            layers=oat.get_layers(),
+            layers=layers,
             keywords=oat.service_desc.get_tags(),
             dataset_metadata_id=service_record.dataset_metadata_id,
         )
