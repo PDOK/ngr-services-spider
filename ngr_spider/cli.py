@@ -146,6 +146,7 @@ def main_layers(args):
     az_container = args.azure_storage_container
     no_updated = args.no_updated
     jq_filter = args.jq_filter
+    no_filter = args.no_filter
     log_level = args.log_level
     csw_url = args.csw_url
     setup_logger(log_level)
@@ -167,7 +168,7 @@ def main_layers(args):
             service_records = csw_client.get_csw_record_by_id(identifier)
         else:
             service_records = csw_client.get_csw_records_by_protocols(
-                protocol_list, svc_owner, number_records
+                protocol_list, svc_owner, number_records, no_filter
             )
 
         services = get_services(service_records)
@@ -420,6 +421,13 @@ def main():
         help="filepath to sorting rules json document",
     )
 
+    layers_parser.add_argument(
+        "--no-filter",
+        dest="no_filter",
+        action="store_true",
+        default=False,
+        help="Do not filter out services records with duplicate or empty service URLS",
+    )
     layers_parser.set_defaults(func=main_layers)
     services_parser.set_defaults(func=main_services)
 
