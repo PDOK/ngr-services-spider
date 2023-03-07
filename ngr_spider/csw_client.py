@@ -15,9 +15,10 @@ class CSWClient:
     def _filter_service_records(
         self, records: list[CswServiceRecord]
     ) -> list[CswServiceRecord]:
-        filtered_records = filter(
-            lambda x: x.service_url != "", records
-        )  # filter out results without serviceurl
+        records.sort(key=lambda x: x.title, reverse=True)
+        filtered_records = filter(lambda x: x.service_url != "", records)
+
+        # filter out results without serviceurl
         # delete duplicate service entries, some service endpoint have multiple service records
         # so last record in get_record_results will be retained in case of duplicate
         # since it will be inserted in new_dict last
@@ -66,8 +67,10 @@ class CSWClient:
     ) -> list[CswServiceRecord]:
 
         protocol_key = "protocol"
-        if protocol == OAT_PROTOCOL: # required since NGR does not support OGC API TILES as a seperate protocol
-            protocol_key= "anyText"
+        if (
+            protocol == OAT_PROTOCOL
+        ):  # required since NGR does not support OGC API TILES as a seperate protocol
+            protocol_key = "anyText"
 
         query = f"type='service' AND organisationName='{svc_owner}' AND {protocol_key}='{protocol}'"
         records = self._get_csw_records(query, max_results, no_filter)
