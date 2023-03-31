@@ -89,8 +89,8 @@ class CSWClient:
                 metadata_id=md_id,
             )
             return result
-        except KeyError:  # TODO: log missing dataset records
-            return None
+        except KeyError: 
+            LOGGER.error(f"could not find dataset with metadata_id \"{md_id}\", this might cause a linked service to not be indexed")
 
     def get_csw_record_by_id(self, id: str) -> list[CswServiceRecord]:
         query = f"identifier='{id}'"
