@@ -199,9 +199,8 @@ def main_layers(args):
                     "Grouping Atom services by datasets has not been implemented (yet)."
                 )
 
-            dataset_ids = list(set([x.dataset_metadata_id for x in succesful_services]))
+            dataset_ids = list(set([x.dataset_metadata_id for x in succesful_services])) 
             datasets = get_csw_datasets(csw_client, dataset_ids)
-
             datasets_dict = [asdict_minus_none(x) for x in datasets]
             succesful_services_dict = [asdict_minus_none(x) for x in succesful_services]
 
