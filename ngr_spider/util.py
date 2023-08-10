@@ -6,6 +6,7 @@ import json
 import logging
 import re
 import sys
+import argparse
 from concurrent.futures import ThreadPoolExecutor
 from types import MethodType
 from typing import Union
@@ -19,15 +20,19 @@ from owslib.wcs import WebCoverageService, wcs110  # type: ignore
 from owslib.wfs import WebFeatureService  # type: ignore
 from owslib.wms import WebMapService  # type: ignore
 from owslib.wmts import WebMapTileService
+from owslib.ogcapi.features import Features 
 from ngr_spider.ogc_api_tiles import OGCApiTiles
 
 from ngr_spider.constants import (  # type: ignore
     ATOM_PROTOCOL,
+    LOOKUP,
+    OAF_PROTOCOL,
     WCS_PROTOCOL,
     WFS_PROTOCOL,
     WMS_PROTOCOL,
     WMTS_PROTOCOL,
     OAT_PROTOCOL,
+    PROTOCOLS,
 )
 from ngr_spider.csw_client import CSWClient
 
@@ -36,6 +41,7 @@ from .models import (
     CswDatasetRecord,
     CswServiceRecord,
     Layer,
+    OafService,
     Service,
     ServiceError,
     Style,
@@ -161,6 +167,8 @@ def get_service(service_record: CswServiceRecord) -> Union[Service, ServiceError
         service = get_atom_service(service_record)
     elif protocol == OAT_PROTOCOL:
         service = get_oat_service(service_record)
+    elif protocol == OAF_PROTOCOL:
+        service = get_oaf_service(service_record)
     return service
 
 
@@ -264,6 +272,37 @@ def get_atom_service(
     r = requests.get(service_record.service_url)
     return AtomService(service_record.service_url, r.text)
 
+#TODO check correctness when test data is available
+def get_oaf_service(
+    service_record: CswServiceRecord,
+) -> Union[OafService, ServiceError]:
+    try:
+        url = service_record.service_url
+        md_id = service_record.metadata_id
+        LOGGER.info(f"{md_id} - {url}")
+        if "://secure" in url:
+            # this is a secure layer not for the general public: ignore
+            return service_record
+        oaf = Features(url)
+        title = "title"
+        description = "abstract"
+        keywords = []
+        dataset_metadata_id = ""
+
+        return OafService(
+            title=title,
+            abstract=description,
+            metadata_id=md_id,
+            url=url,
+            keywords=keywords,
+            dataset_metadata_id=dataset_metadata_id,
+        )
+    except requests.exceptions.HTTPError as e:
+        LOGGER.error(f"md-identifier: {md_id} - {e}")
+    except Exception:
+        message = f"unexpected error occured while retrieving cap doc, md-identifier {md_id}, url: {url}"
+        LOGGER.exception(message)
+    return ServiceError(service_record.service_url, service_record.metadata_id)
 
 def get_oat_service(
     service_record: CswServiceRecord,
@@ -457,12 +496,13 @@ def flatten_service(service):
         }
         return fun_mapping[protocol](layer)
 
-    resource_type_mapping = {
-        WMS_PROTOCOL: "layers",
-        WFS_PROTOCOL: "featuretypes",
-        WCS_PROTOCOL: "coverages",
-        WMTS_PROTOCOL: "layers",
-    }
+    # Can we replace this by lookup in ngr-spider/constants.py 
+    # resource_type_mapping = {
+    #     WMS_PROTOCOL: "layers",
+    #     WFS_PROTOCOL: "featuretypes",
+    #     WCS_PROTOCOL: "coverages",
+    #     WMTS_PROTOCOL: "layers",
+    # }
     protocol = service["protocol"]
 
     if protocol == "INSPIRE Atom":
@@ -470,7 +510,7 @@ def flatten_service(service):
             "Flat output for INSPIRE Atom services has not been implemented (yet)."
         )
 
-    result = list(map(flatten_layer, service[resource_type_mapping[protocol]]))
+    result = list(map(flatten_layer, service[LOOKUP[protocol]]))
     return result
 
 
@@ -546,3 +586,10 @@ def replace_keys(dictionary: dict, fun) -> dict:
         else:
             empty[fun(k)] = v
     return empty
+
+def validate_protocol_argument(value):
+    protocols = value.split(',')
+    for protocol in protocols:
+        if protocol not in PROTOCOLS:
+            raise argparse.ArgumentTypeError(f"Invalid protocol: {protocol}")
+    return value

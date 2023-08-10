@@ -6,14 +6,9 @@ import warnings
 from contextlib import nullcontext
 
 from ngr_spider.constants import (
-    ATOM_PROTOCOL,
     CSW_URL,
     PROTOCOLS,
-    WCS_PROTOCOL,
-    WFS_PROTOCOL,
-    WMS_PROTOCOL,
-    WMTS_PROTOCOL,
-    OAT_PROTOCOL,
+    LOOKUP,
 )
 from ngr_spider.csw_client import CSWClient
 from ngr_spider.decorators import asdict_minus_none
@@ -27,6 +22,7 @@ from ngr_spider.util import (  # type: ignore
     report_services_summary,
     sort_flat_layers,
     write_output,
+    validate_protocol_argument,
 )
 
 from .models import AtomService, LayersMode, LogLevel, Service, ServiceError
@@ -241,16 +237,8 @@ def main_layers(args):
 
         content = get_output(pretty, yaml_output, config, no_updated, jq_filter)
         write_output(output_file, az_conn_string, az_container, yaml_output, content)
-        lookup = {
-            OAT_PROTOCOL: "layers",
-            WMTS_PROTOCOL: "layers",
-            WMS_PROTOCOL: "layers",
-            WFS_PROTOCOL: "featuretypes",
-            WCS_PROTOCOL: "coverages",
-            ATOM_PROTOCOL: "datasets",
-        }  # TODO: move to constants.py
         total_nr_layers = sum(
-            map(lambda x: len(x[lookup[x["protocol"]]]), succesful_services_dict)
+            map(lambda x: len(x[LOOKUP[x["protocol"]]]), succesful_services_dict)
         )
         LOGGER.info(
             f"indexed {len(succesful_services_dict)} services with {total_nr_layers} layers/featuretypes/coverages"
@@ -261,13 +249,6 @@ def main_layers(args):
             message = "\n".join(service_errors_string)
             LOGGER.info(f"failed service urls:\n{message}")
         LOGGER.info(f"output written to {output_file}")
-
-def validate_protocol(value):
-    protocols = value.split(',')
-    for protocol in protocols:
-        if protocol not in PROTOCOLS:
-            raise argparse.ArgumentTypeError(f"Invalid protocol: {protocol}")
-    return value
 
 def main():
     parser = argparse.ArgumentParser(
@@ -290,12 +271,12 @@ def main():
         "output_file", metavar="output-file", type=str, help="JSON output file"
     )
 
-    # TODO: validate protocols input, should comma-separated list of following vals: OGC:WMS,OGC:WMTS,OGC:WFS,OGC:WCS,Inspire Atom
+    # TODO: validate protocols input, should comma-separated list of following vals: 'OGC:WMS,OGC:WMTS,OGC:WFS,OGC:WCS,Inspire Atom,OGC:API tiles,OGC:API features' 
     parent_parser.add_argument(
         "-p",
         "--protocols",
         action="store",
-        type=validate_protocol,
+        type=validate_protocol_argument,
         default="",
         help=f'service protocols (types) to query, comma-separated, values: {", ".join(PROTOCOLS)}',
     )

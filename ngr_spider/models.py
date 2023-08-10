@@ -11,6 +11,7 @@ from lxml import etree  # type: ignore
 
 from ngr_spider.constants import (  # type: ignore
     ATOM_PROTOCOL,
+    OAF_PROTOCOL,
     WCS_PROTOCOL,
     WFS_PROTOCOL,
     WMS_PROTOCOL,
@@ -307,6 +308,12 @@ class WmsService(Service):
 class OatService(Service):
     layers: list[OatLayer]
     protocol: str = OAT_PROTOCOL
+
+@dataclasses.dataclass(kw_only=True)
+class OafService(Service):
+    featuretypes: list[Layer]
+    output_formats: str
+    protocol: str = OAF_PROTOCOL
 
 @dataclasses.dataclass(kw_only=True)
 class WmtsService(Service):
