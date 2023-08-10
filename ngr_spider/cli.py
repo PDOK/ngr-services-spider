@@ -262,6 +262,12 @@ def main_layers(args):
             LOGGER.info(f"failed service urls:\n{message}")
         LOGGER.info(f"output written to {output_file}")
 
+def validate_protocol(value):
+    protocols = value.split(',')
+    for protocol in protocols:
+        if protocol not in PROTOCOLS:
+            raise argparse.ArgumentTypeError(f"Invalid protocol: {protocol}")
+    return value
 
 def main():
     parser = argparse.ArgumentParser(
@@ -289,7 +295,7 @@ def main():
         "-p",
         "--protocols",
         action="store",
-        type=str,
+        type=validate_protocol,
         default="",
         help=f'service protocols (types) to query, comma-separated, values: {", ".join(PROTOCOLS)}',
     )
