@@ -12,7 +12,7 @@ To install from source run (from the root this repo):
 
 ```sh
 python3 -m build
-python3 -m pip install dist/ngr_spider-0.0.1-py3-none-any.whl 
+python3 -m pip install dist/ngr_spider-0.6.1-py3-none-any.whl 
 ```
 
 This should install the cli tool `ngr-spider`:
