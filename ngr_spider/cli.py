@@ -195,7 +195,7 @@ def main_layers(args):
                     "Grouping Atom services by datasets has not been implemented (yet)."
                 )
 
-            dataset_ids = list(set([x.dataset_metadata_id for x in succesful_services])) 
+            dataset_ids = list(set([x.dataset_metadata_id for x in succesful_services]))
             datasets = get_csw_datasets(csw_client, dataset_ids)
             datasets_dict = [asdict_minus_none(x) for x in datasets]
             succesful_services_dict = [asdict_minus_none(x) for x in succesful_services]
@@ -250,6 +250,7 @@ def main_layers(args):
             LOGGER.info(f"failed service urls:\n{message}")
         LOGGER.info(f"output written to {output_file}")
 
+
 def main():
     parser = argparse.ArgumentParser(
         description="Generate list of PDOK services and/or service layers"
@@ -271,7 +272,7 @@ def main():
         "output_file", metavar="output-file", type=str, help="JSON output file"
     )
 
-    # TODO: validate protocols input, should comma-separated list of following vals: 'OGC:WMS,OGC:WMTS,OGC:WFS,OGC:WCS,Inspire Atom,OGC:API tiles,OGC:API features' 
+    # validate protocols input, should comma-separated list of following vals: 'OGC:WMS,OGC:WMTS,OGC:WFS,OGC:WCS,Inspire Atom,OGC:API tiles,OGC:API features'
     parent_parser.add_argument(
         "-p",
         "--protocols",

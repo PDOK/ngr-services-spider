@@ -65,7 +65,6 @@ class CSWClient:
         max_results: int = 0,
         no_filter: bool = False,
     ) -> list[CswServiceRecord]:
-
         protocol_key = "protocol"
         if (
             protocol == OAT_PROTOCOL
@@ -89,8 +88,10 @@ class CSWClient:
                 metadata_id=md_id,
             )
             return result
-        except KeyError: 
-            LOGGER.error(f"could not find dataset with metadata_id \"{md_id}\", this might cause a linked service to not be indexed")
+        except KeyError:
+            LOGGER.error(
+                f'could not find dataset with metadata_id "{md_id}", this might cause a linked service to not be indexed'
+            )
 
     def get_csw_record_by_id(self, id: str) -> list[CswServiceRecord]:
         query = f"identifier='{id}'"

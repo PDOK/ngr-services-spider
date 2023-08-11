@@ -20,7 +20,7 @@ from owslib.wcs import WebCoverageService, wcs110  # type: ignore
 from owslib.wfs import WebFeatureService  # type: ignore
 from owslib.wms import WebMapService  # type: ignore
 from owslib.wmts import WebMapTileService
-from owslib.ogcapi.features import Features 
+from owslib.ogcapi.features import Features
 from ngr_spider.ogc_api_tiles import OGCApiTiles
 
 from ngr_spider.constants import (  # type: ignore
@@ -272,7 +272,8 @@ def get_atom_service(
     r = requests.get(service_record.service_url)
     return AtomService(service_record.service_url, r.text)
 
-#TODO check correctness when test data is available
+
+# TODO check correctness when test data is available
 def get_oaf_service(
     service_record: CswServiceRecord,
 ) -> Union[OafService, ServiceError]:
@@ -303,6 +304,7 @@ def get_oaf_service(
         message = f"unexpected error occured while retrieving cap doc, md-identifier {md_id}, url: {url}"
         LOGGER.exception(message)
     return ServiceError(service_record.service_url, service_record.metadata_id)
+
 
 def get_oat_service(
     service_record: CswServiceRecord,
@@ -496,13 +498,6 @@ def flatten_service(service):
         }
         return fun_mapping[protocol](layer)
 
-    # Can we replace this by lookup in ngr-spider/constants.py 
-    # resource_type_mapping = {
-    #     WMS_PROTOCOL: "layers",
-    #     WFS_PROTOCOL: "featuretypes",
-    #     WCS_PROTOCOL: "coverages",
-    #     WMTS_PROTOCOL: "layers",
-    # }
     protocol = service["protocol"]
 
     if protocol == "INSPIRE Atom":
@@ -587,8 +582,9 @@ def replace_keys(dictionary: dict, fun) -> dict:
             empty[fun(k)] = v
     return empty
 
+
 def validate_protocol_argument(value):
-    protocols = value.split(',')
+    protocols = value.split(",")
     for protocol in protocols:
         if protocol not in PROTOCOLS:
             raise argparse.ArgumentTypeError(f"Invalid protocol: {protocol}")
