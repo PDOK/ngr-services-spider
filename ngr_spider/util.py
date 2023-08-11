@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import argparse
 import asyncio
 import datetime
 import itertools
@@ -6,7 +7,6 @@ import json
 import logging
 import re
 import sys
-import argparse
 from concurrent.futures import ThreadPoolExecutor
 from types import MethodType
 from typing import Union
@@ -16,25 +16,25 @@ import jq
 import requests
 import yaml
 from azure.storage.blob import BlobClient, ContentSettings
+from owslib.ogcapi.features import Features
 from owslib.wcs import WebCoverageService, wcs110  # type: ignore
 from owslib.wfs import WebFeatureService  # type: ignore
 from owslib.wms import WebMapService  # type: ignore
 from owslib.wmts import WebMapTileService
-from owslib.ogcapi.features import Features
-from ngr_spider.ogc_api_tiles import OGCApiTiles
 
 from ngr_spider.constants import (  # type: ignore
     ATOM_PROTOCOL,
     LOOKUP,
     OAF_PROTOCOL,
+    OAT_PROTOCOL,
+    PROTOCOLS,
     WCS_PROTOCOL,
     WFS_PROTOCOL,
     WMS_PROTOCOL,
-    WMTS_PROTOCOL,
-    OAT_PROTOCOL,
-    PROTOCOLS,
+    WMTS_PROTOCOL
 )
 from ngr_spider.csw_client import CSWClient
+from ngr_spider.ogc_api_tiles import OGCApiTiles
 
 from .models import (
     AtomService,
@@ -42,6 +42,7 @@ from .models import (
     CswServiceRecord,
     Layer,
     OafService,
+    OatService,
     Service,
     ServiceError,
     Style,
@@ -50,8 +51,7 @@ from .models import (
     WmsLayer,
     WmsService,
     WmtsLayer,
-    WmtsService,
-    OatService,
+    WmtsService
 )
 
 LOGGER = logging.getLogger(__name__)

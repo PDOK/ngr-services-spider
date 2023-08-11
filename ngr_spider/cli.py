@@ -5,11 +5,7 @@ import os
 import warnings
 from contextlib import nullcontext
 
-from ngr_spider.constants import (
-    CSW_URL,
-    PROTOCOLS,
-    LOOKUP,
-)
+from ngr_spider.constants import CSW_URL, LOOKUP, PROTOCOLS
 from ngr_spider.csw_client import CSWClient
 from ngr_spider.decorators import asdict_minus_none
 from ngr_spider.util import (  # type: ignore
@@ -21,8 +17,8 @@ from ngr_spider.util import (  # type: ignore
     replace_keys,
     report_services_summary,
     sort_flat_layers,
-    write_output,
     validate_protocol_argument,
+    write_output
 )
 
 from .models import AtomService, LayersMode, LogLevel, Service, ServiceError

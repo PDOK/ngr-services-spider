@@ -2,7 +2,9 @@ import logging
 from typing import Optional
 
 from owslib.csw import CatalogueServiceWeb  # type: ignore
+
 from ngr_spider.constants import OAT_PROTOCOL  # type: ignore
+
 from .models import CswDatasetRecord, CswServiceRecord
 
 LOGGER = logging.getLogger(__name__)

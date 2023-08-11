@@ -1,7 +1,8 @@
-import urllib.request
 import json
 import logging
-from .models import VectorTileStyle, OatLayer
+import urllib.request
+
+from .models import OatLayer, VectorTileStyle
 
 LOGGER = logging.getLogger(__name__)
 

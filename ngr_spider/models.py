@@ -1,9 +1,9 @@
 import dataclasses
 import enum
+import logging
 from typing import Optional, Tuple
 from urllib import parse
 from urllib.parse import parse_qs, urlparse
-import logging
 
 import requests
 from dataclass_wizard import JSONWizard  # type: ignore
@@ -12,11 +12,11 @@ from lxml import etree  # type: ignore
 from ngr_spider.constants import (  # type: ignore
     ATOM_PROTOCOL,
     OAF_PROTOCOL,
+    OAT_PROTOCOL,
     WCS_PROTOCOL,
     WFS_PROTOCOL,
     WMS_PROTOCOL,
-    WMTS_PROTOCOL,
-    OAT_PROTOCOL,
+    WMTS_PROTOCOL
 )
 from ngr_spider.decorators import nested_dataclass
 
