@@ -273,7 +273,7 @@ def get_atom_service(
     return AtomService(service_record.service_url, r.text)
 
 
-# TODO check correctness when test data is available
+# TODO check correctness when test data is available, retrieve data from correct source/location
 def get_oaf_service(
     service_record: CswServiceRecord,
 ) -> Union[OafService, ServiceError]:
@@ -500,6 +500,7 @@ def flatten_service(service):
 
     protocol = service["protocol"]
 
+    # TODO? do we need specific functions for flattening OGC:API tiles/features?
     if protocol == "INSPIRE Atom":
         raise NotImplementedError(  # TODO: move check to argument parse function
             "Flat output for INSPIRE Atom services has not been implemented (yet)."
