@@ -484,7 +484,17 @@ def flatten_service(service):
             featuretype[f"service_{field}"] = service[field]
         return featuretype
 
+    def flatten_featuretype_oaf(featuretype):
+        for field in service_fields_mapping:
+            featuretype[f"service_{field}"] = service[field]
+        return featuretype
+    
     def flatten_layer_wmts(layer):
+        for field in service_fields_mapping:
+            layer[f"service_{field}"] = service[field]
+        return layer
+    
+    def flatten_layer_oat(layer):
         for field in service_fields_mapping:
             layer[f"service_{field}"] = service[field]
         return layer
@@ -495,6 +505,8 @@ def flatten_service(service):
             WFS_PROTOCOL: flatten_featuretype_wfs,
             WCS_PROTOCOL: flatten_coverage_wcs,
             WMTS_PROTOCOL: flatten_layer_wmts,
+            OAT_PROTOCOL: flatten_layer_oat,
+            OAF_PROTOCOL: flatten_featuretype_oaf,
         }
         return fun_mapping[protocol](layer)
 
