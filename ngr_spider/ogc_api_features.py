@@ -1,0 +1,93 @@
+import json
+import logging
+import urllib.request
+
+from .models import Layer
+
+LOGGER = logging.getLogger(__name__)
+
+
+class Info:
+    description: str
+    title: str
+    version: str
+
+    def __init__(self, data: dict):
+        self.description = data["description"]
+        self.title = data["title"]
+        self.version = data["version"]
+        pass
+
+
+class ServiceDesc:
+    def __init__(self, href: str):
+        with urllib.request.urlopen(href) as url:
+            self.json = json.load(url)
+
+    def get_info(self):
+        return Info(self.json["info"])
+
+    def get_tags(self):
+        return self.json["tags"]
+
+    def get_servers(self):
+        return self.json["servers"]
+
+    def __get_url_from_servers(self, servers: list[str]):
+        for server in servers:
+            if len(server["url"]) > 0:
+                return server["url"]
+
+
+class Data:
+    def __init__(self, href: str):
+        with urllib.request.urlopen(href) as url:
+            self.json = json.load(url)
+
+
+class OGCApiFeatures:
+    service_url: str
+    service_type: str
+
+    service_desc: ServiceDesc
+    data: Data
+
+    title: str
+    description: str
+
+    def __init__(self, url):
+        self.service_url = url
+        self.__load_landing_page(url)
+
+    # TODO
+    def get_layers(self):
+        service_layer_name: str
+        service_layer_title: str = ""
+        service_layer_abstract: str
+
+        # process layers
+
+        return [
+            Layer(
+                "service_layer_name",
+                "service_layer_title",
+                "service_layer_abstract",
+                "",
+            )
+        ]
+
+    def __load_landing_page(self, service_url: str):
+        with urllib.request.urlopen(service_url) as response:
+            response_body = response.read().decode("utf-8")
+            response_body_data = json.loads(response_body)
+
+            links = response_body_data["links"]
+            for link in links:
+                if link["rel"] == "service-desc":
+                    self.service_desc = ServiceDesc(link["href"])
+                elif link["rel"] == "data":
+                    self.data = Data(link["href"])
+            title = response_body_data["title"]
+            self.title = title if title else ""
+            description = response_body_data["description"]
+            self.description = description if description else ""
