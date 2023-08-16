@@ -34,6 +34,7 @@ from ngr_spider.constants import (  # type: ignore
     WMTS_PROTOCOL
 )
 from ngr_spider.csw_client import CSWClient
+from ngr_spider.ogc_api_features import OGCApiFeatures
 from ngr_spider.ogc_api_tiles import OGCApiTiles
 
 from .models import (
@@ -284,11 +285,14 @@ def get_oaf_service(
         if "://secure" in url:
             # this is a secure layer not for the general public: ignore
             return service_record
-        oaf = Features(url)
-        title = "title"
-        description = "abstract"
+        oaf = OGCApiFeatures(url)
+        title = oaf.title
+        if title == "":  # fallback
+            title = empty_string_if_none(oaf.service_desc.get_info().title)
+        description = oaf.description
+        if description == "":  # fallback
+            description = empty_string_if_none(oaf.service_desc.get_info().description)
         keywords = []
-        dataset_metadata_id = ""
 
         return OafService(
             title=title,
@@ -296,7 +300,8 @@ def get_oaf_service(
             metadata_id=md_id,
             url=url,
             keywords=keywords,
-            dataset_metadata_id=dataset_metadata_id,
+            dataset_metadata_id=service_record.dataset_metadata_id,
+            featuretypes=oaf.get_featuretypes()
         )
     except requests.exceptions.HTTPError as e:
         LOGGER.error(f"md-identifier: {md_id} - {e}")

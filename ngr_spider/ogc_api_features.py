@@ -60,12 +60,12 @@ class OGCApiFeatures:
         self.__load_landing_page(url)
 
     # TODO
-    def get_layers(self):
+    def get_featuretypes(self):
         service_layer_name: str
         service_layer_title: str = ""
         service_layer_abstract: str
 
-        # process layers
+        # process layers, TODO
 
         return [
             Layer(
