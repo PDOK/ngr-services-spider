@@ -43,7 +43,9 @@ if [[ $nr_of_services != "-" ]];then
   nr_svc_flag="-n ${nr_of_services}"
 fi
 
-# Used for local development (docker build . -t ngr-services-spider-local-image)
+# Used for local development 
+# run `docker build . -t ngr-services-spider-local-image ` to create local image of the ngr-spider.
+# afterwards run this script from root of repo with `./examples/generate-pdok-services-plugin-config-ogcapi.sh output_file.json`, where `output_file.json` can be any outputfile name
 docker run -v "/${output_dir}:/output_dir" -v /tmp:/tmp ngr-services-spider-local-image layers $nr_svc_flag --snake-case -s /tmp/sorting-rules.json -m flat -p 'OGC:WMS,OGC:WFS,OGC:WCS,OGC:WMTS,OGC:API tiles,OGC:API features' "$spider_output" --jq-filter '.layers[] |= with_entries(
   if .key == "service_protocol" then
     .value = (.value | split(":")[1] | ascii_downcase) | .key = "service_type" 
