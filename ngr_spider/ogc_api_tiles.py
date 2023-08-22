@@ -16,7 +16,6 @@ class Info:
         self.description = data["description"]
         self.title = data["title"]
         self.version = data["version"]
-        pass
 
 
 class ServiceDesc:

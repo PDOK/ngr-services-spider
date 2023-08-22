@@ -16,7 +16,7 @@ class Info:
         self.description = data["description"]
         self.title = data["title"]
         self.version = data["version"]
-        pass
+
 
 # TODO Implement service to retrieve correct info
 class ServiceDesc:
@@ -32,11 +32,11 @@ class ServiceDesc:
 
     def get_servers(self):
         return self.json["servers"]
-    
-    def get_dataset_metadata_id():
+
+    def get_dataset_metadata_id(self):
         return ""
-    
-    def get_output_format():
+
+    def get_output_format(self):
         return ""
 
     def __get_url_from_servers(self, servers: list[str]):
@@ -50,7 +50,7 @@ class Data:
         with urllib.request.urlopen(href) as url:
             self.json = json.load(url)
 
-
+#TODO implement class to retrieve correct info
 class OGCApiFeatures:
     service_url: str
     service_type: str

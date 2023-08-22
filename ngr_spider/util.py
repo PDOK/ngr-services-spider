@@ -16,7 +16,6 @@ import jq
 import requests
 import yaml
 from azure.storage.blob import BlobClient, ContentSettings
-from owslib.ogcapi.features import Features
 from owslib.wcs import WebCoverageService, wcs110  # type: ignore
 from owslib.wfs import WebFeatureService  # type: ignore
 from owslib.wms import WebMapService  # type: ignore
@@ -302,7 +301,7 @@ def get_oaf_service(
             output_formats=oaf.service_desc.get_output_format(),
             keywords=keywords,
             dataset_metadata_id=oaf.service_desc.get_dataset_metadata_id(),
-            featuretypes=oaf.get_featuretypes()
+            featuretypes=oaf.get_featuretypes(),
         )
     except requests.exceptions.HTTPError as e:
         LOGGER.error(f"md-identifier: {md_id} - {e}")
@@ -494,12 +493,12 @@ def flatten_service(service):
         for field in service_fields_mapping:
             featuretype[f"service_{field}"] = service[field]
         return featuretype
-    
+
     def flatten_layer_wmts(layer):
         for field in service_fields_mapping:
             layer[f"service_{field}"] = service[field]
         return layer
-    
+
     def flatten_layer_oat(layer):
         for field in service_fields_mapping:
             layer[f"service_{field}"] = service[field]
