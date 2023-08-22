@@ -18,7 +18,7 @@ class Info:
         self.version = data["version"]
         pass
 
-
+# TODO Implement service to retrieve correct info
 class ServiceDesc:
     def __init__(self, href: str):
         with urllib.request.urlopen(href) as url:
@@ -28,10 +28,16 @@ class ServiceDesc:
         return Info(self.json["info"])
 
     def get_tags(self):
-        return self.json["tags"]
+        return self.json["tags"] | []
 
     def get_servers(self):
         return self.json["servers"]
+    
+    def get_dataset_metadata_id():
+        return ""
+    
+    def get_output_format():
+        return ""
 
     def __get_url_from_servers(self, servers: list[str]):
         for server in servers:
@@ -59,20 +65,19 @@ class OGCApiFeatures:
         self.service_url = url
         self.__load_landing_page(url)
 
-    # TODO
+    # TODO Get correct info for featuretypes info when available
     def get_featuretypes(self):
-        service_layer_name: str
-        service_layer_title: str = ""
-        service_layer_abstract: str
-
-        # process layers, TODO
+        service_layer_name: str = "service_layer_name"
+        service_layer_title: str = "service_layer_title"
+        service_layer_abstract: str = "service_layer_abstract"
+        service_layer_metadata_id: str = "ervice_layer_metadata_id"
 
         return [
             Layer(
-                "service_layer_name",
-                "service_layer_title",
-                "service_layer_abstract",
-                "",
+                service_layer_name,
+                service_layer_title,
+                service_layer_abstract,
+                service_layer_metadata_id,
             )
         ]
 

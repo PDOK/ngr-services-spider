@@ -63,10 +63,10 @@ def main_services(args):
     no_filter = args.no_filter
     csw_url = args.csw_url
     setup_logger(log_level)
+    protocol_list = PROTOCOLS
 
     csw_client = CSWClient(csw_url)
 
-    protocol_list = PROTOCOLS
     if protocols:
         protocol_list = protocols.split(",")
 

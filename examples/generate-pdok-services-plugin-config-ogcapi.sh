@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # In development
 # bash script to generate config for https://github.com/rduivenvoorde/pdokservicesplugin with ngr-services-spider supporting the ogcapi features/tiles
+# This is an extension of generate-pdok-services-plugin-config.sh used initially for testing ogcapi
 set -euo pipefail
 
 output_file="$1"
@@ -45,11 +46,7 @@ fi
 # Used for local development (docker build . -t ngr-services-spider-local-image)
 docker run -v "/${output_dir}:/output_dir" -v /tmp:/tmp ngr-services-spider-local-image layers $nr_svc_flag --snake-case -s /tmp/sorting-rules.json -m flat -p 'OGC:WMS,OGC:WFS,OGC:WCS,OGC:WMTS,OGC:API tiles,OGC:API features' "$spider_output" --jq-filter '.layers[] |= with_entries(
   if .key == "service_protocol" then
-    if (.value | index("API")) == null then
-      .value = (.value | split(":")[1] | ascii_downcase) | .key = "service_type"
-    else
-      .key = "service_type"
-    end
+    .value = (.value | split(":")[1] | ascii_downcase) | .key = "service_type" 
   elif .key == "service_metadata_id" then 
     .key = "service_md_id" 
   elif .key == "dataset_metadata_id" then 

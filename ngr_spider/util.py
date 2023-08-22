@@ -292,15 +292,16 @@ def get_oaf_service(
         description = oaf.description
         if description == "":  # fallback
             description = empty_string_if_none(oaf.service_desc.get_info().description)
-        keywords = []
+        keywords = oaf.service_desc.get_tags()
 
         return OafService(
             title=title,
             abstract=description,
             metadata_id=md_id,
             url=url,
+            output_formats=oaf.service_desc.get_output_format(),
             keywords=keywords,
-            dataset_metadata_id=service_record.dataset_metadata_id,
+            dataset_metadata_id=oaf.service_desc.get_dataset_metadata_id(),
             featuretypes=oaf.get_featuretypes()
         )
     except requests.exceptions.HTTPError as e:
