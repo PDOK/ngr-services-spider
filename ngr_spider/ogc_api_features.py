@@ -27,7 +27,7 @@ class ServiceDesc:
         return Info(self.json["info"])
 
     def get_tags(self):
-        return self.json["tags"] | []
+        return self.json["tags"]
 
     def get_servers(self):
         return self.json["servers"]
@@ -89,7 +89,5 @@ class OGCApiFeatures:
                 self.service_desc = ServiceDesc(link["href"])
             elif link["rel"] == "data":
                 self.data = Data(link["href"])
-        title = response_body_data["title"]
-        self.title = title if title else ""
-        description = response_body_data["description"]
-        self.description = description if description else ""
+        self.title = response_body_data["title"] or ""
+        self.description = response_body_data["description"] or ""

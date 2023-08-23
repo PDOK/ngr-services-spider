@@ -287,7 +287,7 @@ def get_oaf_service(
         oaf = OGCApiFeatures(url)
         title = oaf.title or oaf.service_desc.get_info().title or ""
         description = oaf.description or oaf.service_desc.get_info().description or ""
-        keywords = oaf.service_desc.get_tags()
+        keywords = oaf.service_desc.get_tags() or []
 
         return OafService(
             title=title,
