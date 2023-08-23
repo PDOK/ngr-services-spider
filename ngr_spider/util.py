@@ -23,7 +23,7 @@ from owslib.wmts import WebMapTileService
 
 from ngr_spider.constants import (  # type: ignore
     ATOM_PROTOCOL,
-    LOOKUP,
+    PROTOCOL_LOOKUP,
     OAF_PROTOCOL,
     OAT_PROTOCOL,
     PROTOCOLS,
@@ -285,12 +285,8 @@ def get_oaf_service(
             # this is a secure layer not for the general public: ignore
             return service_record
         oaf = OGCApiFeatures(url)
-        title = oaf.title
-        if title == "":  # fallback
-            title = empty_string_if_none(oaf.service_desc.get_info().title)
-        description = oaf.description
-        if description == "":  # fallback
-            description = empty_string_if_none(oaf.service_desc.get_info().description)
+        title = oaf.title or oaf.service_desc.get_info().title or ""
+        description = oaf.description or oaf.service_desc.get_info().description or ""
         keywords = oaf.service_desc.get_tags()
 
         return OafService(
@@ -322,12 +318,8 @@ def get_oat_service(
             # this is a secure layer not for the general public: ignore
             return service_record
         oat = OGCApiTiles(url)
-        title = oat.title
-        if title == "":  # fallback
-            title = empty_string_if_none(oat.service_desc.get_info().title)
-        description = oat.description
-        if description == "":  # fallback
-            description = empty_string_if_none(oat.service_desc.get_info().description)
+        title = oat.title or oat.service_desc.get_info().title or ""
+        description = oat.description or oat.service_desc.get_info().description or ""
 
         layers = oat.get_layers()
         for layer in layers:
@@ -523,7 +515,7 @@ def flatten_service(service):
             "Flat output for INSPIRE Atom services has not been implemented (yet)."
         )
 
-    result = list(map(flatten_layer, service[LOOKUP[protocol]]))
+    result = list(map(flatten_layer, service[PROTOCOL_LOOKUP[protocol]]))
     return result
 
 

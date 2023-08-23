@@ -15,7 +15,7 @@ PROTOCOLS = [
     OAT_PROTOCOL,
     OAF_PROTOCOL,
 ]
-LOOKUP = {
+PROTOCOL_LOOKUP = {
     OAT_PROTOCOL: "layers",
     WMTS_PROTOCOL: "layers",
     WMS_PROTOCOL: "layers",

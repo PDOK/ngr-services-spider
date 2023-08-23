@@ -5,7 +5,7 @@ import os
 import warnings
 from contextlib import nullcontext
 
-from ngr_spider.constants import CSW_URL, LOOKUP, PROTOCOLS
+from ngr_spider.constants import CSW_URL, PROTOCOL_LOOKUP, PROTOCOLS
 from ngr_spider.csw_client import CSWClient
 from ngr_spider.decorators import asdict_minus_none
 from ngr_spider.util import (  # type: ignore
@@ -234,7 +234,7 @@ def main_layers(args):
         content = get_output(pretty, yaml_output, config, no_updated, jq_filter)
         write_output(output_file, az_conn_string, az_container, yaml_output, content)
         total_nr_layers = sum(
-            map(lambda x: len(x[LOOKUP[x["protocol"]]]), succesful_services_dict)
+            map(lambda x: len(x[PROTOCOL_LOOKUP[x["protocol"]]]), succesful_services_dict)
         )
         LOGGER.info(
             f"indexed {len(succesful_services_dict)} services with {total_nr_layers} layers/featuretypes/coverages"
