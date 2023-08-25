@@ -141,11 +141,11 @@ class OGCApiTiles:
             for link in links:
                 if link["rel"] == "service-desc":
                     self.service_desc = ServiceDesc(link["href"])
-                elif link["rel"] == "data":
+                elif link["rel"] == "data" or link["rel"].endswith('styles'):
                     self.data = Data(link["href"])
-                elif link["rel"] == "tiles":
+                elif link["rel"] == "tiles" or link["rel"].endswith('tilesets-vector'):
                     self.tiles = Tiles(link["href"])
-                elif link["rel"] == "tileMatrixSets":
+                elif link["rel"] == "tileMatrixSets" or link["rel"].endswith('tiling-schemes'):
                     self.tile_matrix_sets = TileMatrixSets(link["href"])
             title = response_body_data["title"]
             self.title = title if title else ""
