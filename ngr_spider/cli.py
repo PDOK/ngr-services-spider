@@ -5,16 +5,7 @@ import os
 import warnings
 from contextlib import nullcontext
 
-from ngr_spider.constants import (
-    ATOM_PROTOCOL,
-    CSW_URL,
-    PROTOCOLS,
-    WCS_PROTOCOL,
-    WFS_PROTOCOL,
-    WMS_PROTOCOL,
-    WMTS_PROTOCOL,
-    OAT_PROTOCOL,
-)
+from ngr_spider.constants import CSW_URL, PROTOCOL_LOOKUP, PROTOCOLS
 from ngr_spider.csw_client import CSWClient
 from ngr_spider.decorators import asdict_minus_none
 from ngr_spider.util import (  # type: ignore
@@ -26,7 +17,8 @@ from ngr_spider.util import (  # type: ignore
     replace_keys,
     report_services_summary,
     sort_flat_layers,
-    write_output,
+    validate_protocol_argument,
+    write_output
 )
 
 from .models import AtomService, LayersMode, LogLevel, Service, ServiceError
@@ -71,10 +63,10 @@ def main_services(args):
     no_filter = args.no_filter
     csw_url = args.csw_url
     setup_logger(log_level)
+    protocol_list = PROTOCOLS
 
     csw_client = CSWClient(csw_url)
 
-    protocol_list = PROTOCOLS
     if protocols:
         protocol_list = protocols.split(",")
 
@@ -199,7 +191,7 @@ def main_layers(args):
                     "Grouping Atom services by datasets has not been implemented (yet)."
                 )
 
-            dataset_ids = list(set([x.dataset_metadata_id for x in succesful_services])) 
+            dataset_ids = list(set([x.dataset_metadata_id for x in succesful_services]))
             datasets = get_csw_datasets(csw_client, dataset_ids)
             datasets_dict = [asdict_minus_none(x) for x in datasets]
             succesful_services_dict = [asdict_minus_none(x) for x in succesful_services]
@@ -241,16 +233,8 @@ def main_layers(args):
 
         content = get_output(pretty, yaml_output, config, no_updated, jq_filter)
         write_output(output_file, az_conn_string, az_container, yaml_output, content)
-        lookup = {
-            OAT_PROTOCOL: "layers",
-            WMTS_PROTOCOL: "layers",
-            WMS_PROTOCOL: "layers",
-            WFS_PROTOCOL: "featuretypes",
-            WCS_PROTOCOL: "coverages",
-            ATOM_PROTOCOL: "datasets",
-        }  # TODO: move to constants.py
         total_nr_layers = sum(
-            map(lambda x: len(x[lookup[x["protocol"]]]), succesful_services_dict)
+            map(lambda x: len(x[PROTOCOL_LOOKUP[x["protocol"]]]), succesful_services_dict)
         )
         LOGGER.info(
             f"indexed {len(succesful_services_dict)} services with {total_nr_layers} layers/featuretypes/coverages"
@@ -284,12 +268,12 @@ def main():
         "output_file", metavar="output-file", type=str, help="JSON output file"
     )
 
-    # TODO: validate protocols input, should comma-separated list of following vals: OGC:WMS,OGC:WMTS,OGC:WFS,OGC:WCS,Inspire Atom
+    # validate protocols input, should comma-separated list of following vals: 'OGC:WMS,OGC:WMTS,OGC:WFS,OGC:WCS,Inspire Atom,OGC:API tiles,OGC:API features'
     parent_parser.add_argument(
         "-p",
         "--protocols",
         action="store",
-        type=str,
+        type=validate_protocol_argument,
         default="",
         help=f'service protocols (types) to query, comma-separated, values: {", ".join(PROTOCOLS)}',
     )

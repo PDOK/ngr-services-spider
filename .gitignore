@@ -1,6 +1,7 @@
 .vscode/
 .idea/
 .env/
+.venv/
 dist/
 *.egg-info/
 data/

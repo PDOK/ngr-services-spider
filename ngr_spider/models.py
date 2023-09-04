@@ -1,9 +1,9 @@
 import dataclasses
 import enum
+import logging
 from typing import Optional, Tuple
 from urllib import parse
 from urllib.parse import parse_qs, urlparse
-import logging
 
 import requests
 from dataclass_wizard import JSONWizard  # type: ignore
@@ -11,15 +11,17 @@ from lxml import etree  # type: ignore
 
 from ngr_spider.constants import (  # type: ignore
     ATOM_PROTOCOL,
+    OAF_PROTOCOL,
+    OAT_PROTOCOL,
     WCS_PROTOCOL,
     WFS_PROTOCOL,
     WMS_PROTOCOL,
-    WMTS_PROTOCOL,
-    OAT_PROTOCOL,
+    WMTS_PROTOCOL
 )
 from ngr_spider.decorators import nested_dataclass
 
 LOGGER = logging.getLogger(__name__)
+
 
 def get_query_param_val(url, param_name):
     try:
@@ -53,10 +55,12 @@ class Style:
     name: str
     legend_url: str = ""
 
+
 @dataclasses.dataclass
 class VectorTileStyle:
     name: str
     url: str
+
 
 @dataclasses.dataclass
 class Layer:
@@ -72,6 +76,7 @@ class WmsLayer(Layer):
     crs: str
     minscale: str = ""
     maxscale: str = ""
+
 
 @dataclasses.dataclass
 class OatLayer(Layer):
@@ -161,7 +166,6 @@ class AtomService(Service):
     }
 
     def get_link(self, link_el) -> Link:
-
         url = get_text_xpath("@href", link_el, self._ns)
         type = get_text_xpath("@type", link_el, self._ns)
         length = get_text_xpath("@length", link_el, self._ns)
@@ -303,10 +307,19 @@ class WmsService(Service):
     layers: list[WmsLayer]
     protocol: str = WMS_PROTOCOL
 
+
 @dataclasses.dataclass(kw_only=True)
 class OatService(Service):
     layers: list[OatLayer]
     protocol: str = OAT_PROTOCOL
+
+
+@dataclasses.dataclass(kw_only=True)
+class OafService(Service):
+    featuretypes: list[Layer]
+    output_formats: str
+    protocol: str = OAF_PROTOCOL
+
 
 @dataclasses.dataclass(kw_only=True)
 class WmtsService(Service):
@@ -456,7 +469,7 @@ class CswServiceRecord(JSONWizard):
         parsed_url = urlparse(operates_on_url.lower())
         try:
             return parse_qs(parsed_url.query)["id"][0]
-        except (IndexError,KeyError):
+        except (IndexError, KeyError):
             return ""
 
     def get_service_protocol(self, el):

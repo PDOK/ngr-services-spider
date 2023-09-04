@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import argparse
 import asyncio
 import datetime
 import itertools
@@ -19,23 +20,29 @@ from owslib.wcs import WebCoverageService, wcs110  # type: ignore
 from owslib.wfs import WebFeatureService  # type: ignore
 from owslib.wms import WebMapService  # type: ignore
 from owslib.wmts import WebMapTileService
-from ngr_spider.ogc_api_tiles import OGCApiTiles
 
 from ngr_spider.constants import (  # type: ignore
     ATOM_PROTOCOL,
+    PROTOCOL_LOOKUP,
+    OAF_PROTOCOL,
+    OAT_PROTOCOL,
+    PROTOCOLS,
     WCS_PROTOCOL,
     WFS_PROTOCOL,
     WMS_PROTOCOL,
-    WMTS_PROTOCOL,
-    OAT_PROTOCOL,
+    WMTS_PROTOCOL
 )
 from ngr_spider.csw_client import CSWClient
+from ngr_spider.ogc_api_features import OGCApiFeatures
+from ngr_spider.ogc_api_tiles import OGCApiTiles
 
 from .models import (
     AtomService,
     CswDatasetRecord,
     CswServiceRecord,
     Layer,
+    OafService,
+    OatService,
     Service,
     ServiceError,
     Style,
@@ -44,8 +51,7 @@ from .models import (
     WmsLayer,
     WmsService,
     WmtsLayer,
-    WmtsService,
-    OatService,
+    WmtsService
 )
 
 LOGGER = logging.getLogger(__name__)
@@ -161,6 +167,8 @@ def get_service(service_record: CswServiceRecord) -> Union[Service, ServiceError
         service = get_atom_service(service_record)
     elif protocol == OAT_PROTOCOL:
         service = get_oat_service(service_record)
+    elif protocol == OAF_PROTOCOL:
+        service = get_oaf_service(service_record)
     return service
 
 
@@ -265,6 +273,40 @@ def get_atom_service(
     return AtomService(service_record.service_url, r.text)
 
 
+# TODO check correctness when test data is available, retrieve data from correct source/location
+def get_oaf_service(
+    service_record: CswServiceRecord,
+) -> Union[OafService, ServiceError]:
+    try:
+        url = service_record.service_url
+        md_id = service_record.metadata_id
+        LOGGER.info(f"{md_id} - {url}")
+        if "://secure" in url:
+            # this is a secure layer not for the general public: ignore
+            return service_record
+        oaf = OGCApiFeatures(url)
+        title = oaf.title or oaf.service_desc.get_info().title or ""
+        description = oaf.description or oaf.service_desc.get_info().description or ""
+        keywords = oaf.service_desc.get_tags() or []
+
+        return OafService(
+            title=title,
+            abstract=description,
+            metadata_id=md_id,
+            url=url,
+            output_formats=oaf.service_desc.get_output_format(),
+            keywords=keywords,
+            dataset_metadata_id=oaf.service_desc.get_dataset_metadata_id(),
+            featuretypes=oaf.get_featuretypes(),
+        )
+    except requests.exceptions.HTTPError as e:
+        LOGGER.error(f"md-identifier: {md_id} - {e}")
+    except Exception:
+        message = f"unexpected error occured while retrieving cap doc, md-identifier {md_id}, url: {url}"
+        LOGGER.exception(message)
+    return ServiceError(service_record.service_url, service_record.metadata_id)
+
+
 def get_oat_service(
     service_record: CswServiceRecord,
 ) -> Union[OatService, ServiceError]:
@@ -276,12 +318,8 @@ def get_oat_service(
             # this is a secure layer not for the general public: ignore
             return service_record
         oat = OGCApiTiles(url)
-        title = oat.title
-        if title == "":  # fallback
-            title = empty_string_if_none(oat.service_desc.get_info().title)
-        description = oat.description
-        if description == "":  # fallback
-            description = empty_string_if_none(oat.service_desc.get_info().description)
+        title = oat.title or oat.service_desc.get_info().title or ""
+        description = oat.description or oat.service_desc.get_info().description or ""
 
         layers = oat.get_layers()
         for layer in layers:
@@ -443,7 +481,17 @@ def flatten_service(service):
             featuretype[f"service_{field}"] = service[field]
         return featuretype
 
+    def flatten_featuretype_oaf(featuretype):
+        for field in service_fields_mapping:
+            featuretype[f"service_{field}"] = service[field]
+        return featuretype
+
     def flatten_layer_wmts(layer):
+        for field in service_fields_mapping:
+            layer[f"service_{field}"] = service[field]
+        return layer
+
+    def flatten_layer_oat(layer):
         for field in service_fields_mapping:
             layer[f"service_{field}"] = service[field]
         return layer
@@ -454,23 +502,20 @@ def flatten_service(service):
             WFS_PROTOCOL: flatten_featuretype_wfs,
             WCS_PROTOCOL: flatten_coverage_wcs,
             WMTS_PROTOCOL: flatten_layer_wmts,
+            OAT_PROTOCOL: flatten_layer_oat,
+            OAF_PROTOCOL: flatten_featuretype_oaf,
         }
         return fun_mapping[protocol](layer)
 
-    resource_type_mapping = {
-        WMS_PROTOCOL: "layers",
-        WFS_PROTOCOL: "featuretypes",
-        WCS_PROTOCOL: "coverages",
-        WMTS_PROTOCOL: "layers",
-    }
     protocol = service["protocol"]
 
+    # TODO? do we need specific functions for flattening OGC:API tiles/features?
     if protocol == "INSPIRE Atom":
         raise NotImplementedError(  # TODO: move check to argument parse function
             "Flat output for INSPIRE Atom services has not been implemented (yet)."
         )
 
-    result = list(map(flatten_layer, service[resource_type_mapping[protocol]]))
+    result = list(map(flatten_layer, service[PROTOCOL_LOOKUP[protocol]]))
     return result
 
 
@@ -546,3 +591,11 @@ def replace_keys(dictionary: dict, fun) -> dict:
         else:
             empty[fun(k)] = v
     return empty
+
+
+def validate_protocol_argument(value):
+    protocols = value.split(",")
+    for protocol in protocols:
+        if protocol not in PROTOCOLS:
+            raise argparse.ArgumentTypeError(f"Invalid protocol: {protocol}")
+    return value

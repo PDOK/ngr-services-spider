@@ -11,8 +11,7 @@ CLI (command line interface) application to retrieve list of services and datase
 To install from source run (from the root this repo):
 
 ```sh
-python3 -m build
-python3 -m pip install dist/ngr_spider-0.0.1-py3-none-any.whl 
+python3 -m pip install -e .
 ```
 
 This should install the cli tool `ngr-spider`:
@@ -34,10 +33,10 @@ options:
 
 ## Examples
 
-1. To generate a list of layers per service per dataset run the following:
+1. To generate a list of layers per service run the following:
 
 ```sh
-ngr-spider layers -p OGC:WMS,OGC:WMTS -m datasets pdok-services.json
+ngr-spider layers -p 'OGC:WMS,OGC:WMTS' -m services pdok-services.json
 ```
 
 ## Development

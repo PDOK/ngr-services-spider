@@ -1,7 +1,8 @@
-import urllib.request
 import json
 import logging
-from .models import VectorTileStyle, OatLayer
+import urllib.request
+
+from .models import OatLayer, VectorTileStyle
 
 LOGGER = logging.getLogger(__name__)
 
@@ -15,7 +16,6 @@ class Info:
         self.description = data["description"]
         self.title = data["title"]
         self.version = data["version"]
-        pass
 
 
 class ServiceDesc:
