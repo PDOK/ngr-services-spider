@@ -27,7 +27,7 @@ class ServiceDesc:
         return Info(self.json["info"])
 
     def get_tags(self):
-        return self.json["tags"]
+        return self.json.get('tags', []) or []
 
     def get_servers(self):
         return self.json["servers"]
