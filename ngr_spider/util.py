@@ -318,12 +318,16 @@ def get_oat_service(
             # this is a secure layer not for the general public: ignore
             return service_record
         oat = OGCApiTiles(url)
+        LOGGER.info('HALLO', oat.title)
         title = oat.title or oat.service_desc.get_info().title or ""
         description = oat.description or oat.service_desc.get_info().description or ""
 
         layers = oat.get_layers()
+
         for layer in layers:
+            LOGGER.info('BLUB',layer.name)
             layer.dataset_metadata_id = service_record.dataset_metadata_id
+
 
         return OatService(
             # http://docs.ogc.org/DRAFTS/19-072.html#rc_landing-page-section

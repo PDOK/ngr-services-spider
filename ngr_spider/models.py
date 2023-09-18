@@ -77,13 +77,24 @@ class WmsLayer(Layer):
     minscale: str = ""
     maxscale: str = ""
 
+@dataclasses.dataclass
+class OatTileSet():
+    tileset_title: str
+    tileset_crs: str
+    tileset_data_type: str
+    tileset_min_scale: str = ""
+    tileset_max_scale: str = ""
+
 
 @dataclasses.dataclass
-class OatLayer(Layer):
+class OatTiles():
+    title: str
+    abstract: str
+    tilesets: list[OatTileSet]
+
+@dataclasses.dataclass
+class OatStyleLayer(Layer):
     styles: list[VectorTileStyle]
-    crs: str
-    minscale: str = ""
-    maxscale: str = ""
 
 
 @dataclasses.dataclass
@@ -310,7 +321,7 @@ class WmsService(Service):
 
 @dataclasses.dataclass(kw_only=True)
 class OatService(Service):
-    layers: list[OatLayer]
+    layers: list[OatStyleLayer]
     protocol: str = OAT_PROTOCOL
 
 

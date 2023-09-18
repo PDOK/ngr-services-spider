@@ -2,7 +2,7 @@ import json
 import logging
 import urllib.request
 
-from .models import OatLayer, VectorTileStyle
+from .models import OatStyleLayer, OatTiles, VectorTileStyle, OatStyleLayer
 
 LOGGER = logging.getLogger(__name__)
 
@@ -76,7 +76,7 @@ class OGCApiTiles:
 
     service_desc: ServiceDesc
     data: Data
-    tiles: Tiles
+    tiles: OatTiles
     tile_matrix_sets: TileMatrixSets
 
     title: str
@@ -88,55 +88,39 @@ class OGCApiTiles:
 
     # https://docs.mapbox.com/mapbox-gl-js/style-spec/sources/#vector
     def get_layers(self):
-        service_layer_name: str
-        service_layer_title: str = ""
-        service_layer_abstract: str
-        service_layer_crs: str = ""
-        service_layer_min_scale: str = ""
-        service_layer_max_scale: str = ""
-        service_data_type: str
+        tiles_title: str
+        tiles_abstract: str
+        tileset_titles: str = ""
+        tileset_crs: str = ""
+        tileset_min_scale: str = ""
+        tileset_max_scale: str = ""
+        tileset_data_type: str
 
         # process styles
         # TODO style should be generated based on the type of the tiles; png, Vector etc.
-        vector_tile_styles: list[VectorTileStyle] = self.get_styles()
-
+        styleLayers: list[VectorTileStyle] = self.get_styleLayers()
         # process layers
         tiles_json = self.tiles.json
-
-        service_layer_name = tiles_json["title"]
-        service_layer_abstract = tiles_json["description"]
-
+        tiles_title = tiles_json["title"]
+        tiles_abstract = tiles_json["description"]
         tile_sets = tiles_json["tilesets"]
         for tile_set in tile_sets:
-            service_layer_crs = tile_set["crs"]
-
-            service_layer_title = tile_set["title"] if "title" in tile_set else ""
             t_links = tile_set["links"]
             for l in t_links:
                 if l["rel"] == "self":
                     with urllib.request.urlopen(l["href"]) as url:
                         tile = json.load(url)
-                        service_layer_title = tile["title"]
-                        self.service_type = tile["dataType"]
+                        tileset_title = tile["title"]
+                        tileset_crs = tile["crs"]
+                        tileset_data_type: tile["dataType"]
 
-        return [
-            OatLayer(
-                service_layer_name,
-                service_layer_title,
-                service_layer_abstract,
-                "",
-                vector_tile_styles,
-                service_layer_crs,
-                service_layer_min_scale,
-                service_layer_max_scale,
-            )
-        ]
+        return styleLayers
 
     def __load_landing_page(self, service_url: str):
+        LOGGER.info('__load_landing_page', service_url)
         with urllib.request.urlopen(service_url) as response:
             response_body = response.read().decode("utf-8")
             response_body_data = json.loads(response_body)
-
             links = response_body_data["links"]
             for link in links:
                 if link["rel"] == "service-desc":
@@ -170,8 +154,22 @@ class OGCApiTiles:
                 styles.insert(0, s)  # insert as first element if it is default
             else:
                 styles.append(s)
-
         return styles
+
+    def get_styleLayers(self):
+        styleLayers: list[Layer] = []
+        data = self.data.json
+        for style in data["styles"]:
+            style_stylesheet = ""
+            for link in style["links"]:
+                sr = link["rel"]
+                if sr == "stylesheet":
+                    style_stylesheet = link["href"]
+            s = OatStyleLayer(style["id"], style["title"], "",  "", [VectorTileStyle(style["title"], style_stylesheet)])
+            styleLayers.append(s)
+        return styleLayers
+
+
 
     def get_tile_matrix_sets(self):
         tile_matrix_sets = dict()
