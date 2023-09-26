@@ -58,6 +58,7 @@ class Style:
 
 @dataclasses.dataclass
 class VectorTileStyle:
+    id: str
     name: str
     url: str
 
@@ -93,7 +94,7 @@ class OatTiles():
     tilesets: list[OatTileSet]
 
 @dataclasses.dataclass
-class OatStyleLayer(Layer):
+class OatLayer(Layer):
     styles: list[VectorTileStyle]
 
 
@@ -321,7 +322,7 @@ class WmsService(Service):
 
 @dataclasses.dataclass(kw_only=True)
 class OatService(Service):
-    layers: list[OatStyleLayer]
+    layers: list[OatLayer]
     protocol: str = OAT_PROTOCOL
 
 

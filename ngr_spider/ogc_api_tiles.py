@@ -2,7 +2,7 @@ import json
 import logging
 import urllib.request
 
-from .models import OatStyleLayer, OatTiles, VectorTileStyle, OatStyleLayer
+from .models import OatLayer, OatTiles, VectorTileStyle
 
 LOGGER = logging.getLogger(__name__)
 
@@ -86,38 +86,42 @@ class OGCApiTiles:
         self.service_url = url
         self.__load_landing_page(url)
 
-    # https://docs.mapbox.com/mapbox-gl-js/style-spec/sources/#vector
     def get_layers(self):
         tiles_title: str
         tiles_abstract: str
-        tileset_titles: str = ""
-        tileset_crs: str = ""
-        tileset_min_scale: str = ""
-        tileset_max_scale: str = ""
-        tileset_data_type: str
+#We doen in de viewer nog niets met de verschillende tilesets
+#         tileset_titles: str = ""
+#         tileset_crs: str = ""
+#         tileset_min_scale: str = ""
+#         tileset_max_scale: str = ""
+#         tileset_data_type: str
 
-        # process styles
-        # TODO style should be generated based on the type of the tiles; png, Vector etc.
-        styleLayers: list[VectorTileStyle] = self.get_styleLayers()
         # process layers
         tiles_json = self.tiles.json
         tiles_title = tiles_json["title"]
         tiles_abstract = tiles_json["description"]
-        tile_sets = tiles_json["tilesets"]
-        for tile_set in tile_sets:
-            t_links = tile_set["links"]
-            for l in t_links:
-                if l["rel"] == "self":
-                    with urllib.request.urlopen(l["href"]) as url:
-                        tile = json.load(url)
-                        tileset_title = tile["title"]
-                        tileset_crs = tile["crs"]
-                        tileset_data_type: tile["dataType"]
+#         tile_sets = tiles_json["tilesets"]
+#         for tile_set in tile_sets:
+#             t_links = tile_set["links"]
+#             for l in t_links:
+#                 if l["rel"] == "self":
+#                     with urllib.request.urlopen(l["href"]) as url:
+#                         tile = json.load(url)
+#                         tileset_title = tile["title"]
+#                         tileset_crs = tile["crs"]
+#                         tileset_data_type: tile["dataType"]
+        styles = self.get_styles()
 
-        return styleLayers
+        layer = OatLayer(
+            tiles_title,
+            tiles_title,
+            tiles_abstract, "",
+            self.get_styles()
+            )
+        return [layer]
+
 
     def __load_landing_page(self, service_url: str):
-        LOGGER.info('__load_landing_page', service_url)
         with urllib.request.urlopen(service_url) as response:
             response_body = response.read().decode("utf-8")
             response_body_data = json.loads(response_body)
@@ -142,33 +146,18 @@ class OGCApiTiles:
         default_style_name: str = ""
         if data["default"] is not None:
             default_style_name = data["default"]
-
         for style in data["styles"]:
             style_stylesheet = ""
             for link in style["links"]:
                 sr = link["rel"]
                 if sr == "stylesheet":
                     style_stylesheet = link["href"]
-            s = VectorTileStyle(style["title"], style_stylesheet)
-            if len(default_style_name) > 0:
+            s = VectorTileStyle(style["id"], style["title"], style_stylesheet)
+            if len(default_style_name) > 0 and style["title"] == default_style_name:
                 styles.insert(0, s)  # insert as first element if it is default
             else:
                 styles.append(s)
         return styles
-
-    def get_styleLayers(self):
-        styleLayers: list[Layer] = []
-        data = self.data.json
-        for style in data["styles"]:
-            style_stylesheet = ""
-            for link in style["links"]:
-                sr = link["rel"]
-                if sr == "stylesheet":
-                    style_stylesheet = link["href"]
-            s = OatStyleLayer(style["id"], style["title"], "",  "", [VectorTileStyle(style["title"], style_stylesheet)])
-            styleLayers.append(s)
-        return styleLayers
-
 
 
     def get_tile_matrix_sets(self):
