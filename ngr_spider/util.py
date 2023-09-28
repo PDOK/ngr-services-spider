@@ -73,7 +73,6 @@ def get_output(
     if jq_filter:
         transformed_config_text = jq.compile(jq_filter).input(config).text()
         config = json.loads(transformed_config_text)
-
     if yaml_output:
         content = yaml.dump(config, default_flow_style=False)
     else:
@@ -322,15 +321,18 @@ def get_oat_service(
         description = oat.description or oat.service_desc.get_info().description or ""
 
         layers = oat.get_layers()
+
         for layer in layers:
             layer.dataset_metadata_id = service_record.dataset_metadata_id
+
+        service_url = oat.service_desc.get_tile_request_url()
 
         return OatService(
             # http://docs.ogc.org/DRAFTS/19-072.html#rc_landing-page-section
             title=title,
             abstract=description,
             metadata_id=md_id,
-            url=oat.service_desc.get_tile_request_url(),
+            url=service_url,
             layers=layers,
             keywords=oat.service_desc.get_tags(),
             dataset_metadata_id=service_record.dataset_metadata_id,
