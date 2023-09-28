@@ -89,7 +89,6 @@ class OGCApiTiles:
     def get_layers(self):
         tiles_title: str
         tiles_abstract: str
-#We doen in de viewer nog niets met de verschillende tilesets
 #         tileset_titles: str = ""
 #         tileset_crs: str = ""
 #         tileset_min_scale: str = ""
@@ -110,7 +109,6 @@ class OGCApiTiles:
 #                         tileset_title = tile["title"]
 #                         tileset_crs = tile["crs"]
 #                         tileset_data_type: tile["dataType"]
-        styles = self.get_styles()
 
         layer = OatLayer(
             tiles_title,
