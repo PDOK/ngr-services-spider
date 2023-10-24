@@ -80,12 +80,8 @@ class WmsLayer(Layer):
 
 @dataclasses.dataclass
 class OatTileSet():
-    tileset_title: str
+    tileset_id: str
     tileset_crs: str
-    tileset_data_type: str
-    tileset_min_scale: str = ""
-    tileset_max_scale: str = ""
-
 
 @dataclasses.dataclass
 class OatTiles():
@@ -96,6 +92,7 @@ class OatTiles():
 @dataclasses.dataclass
 class OatLayer(Layer):
     styles: list[VectorTileStyle]
+    tiles: list[OatTiles]
 
 
 @dataclasses.dataclass
