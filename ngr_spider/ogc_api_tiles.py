@@ -2,7 +2,7 @@ import json
 import logging
 import urllib.request
 
-from .models import OatLayer, OatTiles, VectorTileStyle
+from .models import OatLayer, OatTileSet, OatTiles, VectorTileStyle
 
 LOGGER = logging.getLogger(__name__)
 
@@ -89,32 +89,18 @@ class OGCApiTiles:
     def get_layers(self):
         tiles_title: str
         tiles_abstract: str
-#         tileset_titles: str = ""
-#         tileset_crs: str = ""
-#         tileset_min_scale: str = ""
-#         tileset_max_scale: str = ""
-#         tileset_data_type: str
 
         # process layers
         tiles_json = self.tiles.json
         tiles_title = tiles_json["title"]
         tiles_abstract = tiles_json["description"]
-#         tile_sets = tiles_json["tilesets"]
-#         for tile_set in tile_sets:
-#             t_links = tile_set["links"]
-#             for l in t_links:
-#                 if l["rel"] == "self":
-#                     with urllib.request.urlopen(l["href"]) as url:
-#                         tile = json.load(url)
-#                         tileset_title = tile["title"]
-#                         tileset_crs = tile["crs"]
-#                         tileset_data_type: tile["dataType"]
 
         layer = OatLayer(
             tiles_title,
             tiles_title,
             tiles_abstract, "",
-            self.get_styles()
+            self.get_styles(),
+            self.get_tiles()
             )
         return [layer]
 
@@ -156,21 +142,27 @@ class OGCApiTiles:
             else:
                 styles.append(s)
         return styles
+    
+    def get_tiles(self):
+        tiles: list[OatTiles] = []
+        tiles_json = self.tiles.json
+        tiles.append(
+            OatTiles(
+                title=tiles_json["title"],
+                abstract=tiles_json["description"],
+                tilesets=self.get_tilesets()
+            )
+        )
+        return tiles
 
-
-    def get_tile_matrix_sets(self):
-        tile_matrix_sets = dict()
-        matrix_sets = self.tile_matrix_sets.json
-        for matrix_set in matrix_sets["tileMatrixSets"]:
-            matrix_set_id = matrix_set["id"]
-            tile_matrix_sets[matrix_set["id"]] = {}
-            matrix_set_url: str
-            for link in matrix_set["links"]:
-                se = link["rel"]
-                if se == "self":
-                    with urllib.request.urlopen(link["href"]) as url:
-                        matrix_set_meta = json.load(url)
-                        for i in matrix_set_meta["tileMatrices"]:
-                            tile_matrix_sets[matrix_set_id] = i["scaleDenominator"]
-
-        return tile_matrix_sets
+    def get_tilesets(self):
+        tilesets: list[OatTileSet] = []
+        tilesets_json = self.tiles.json["tilesets"]
+        for tileset in tilesets_json:
+            tilesets.append(
+                OatTileSet(
+                    tileset_id = tileset["tileMatrixSetId"],
+                    tileset_crs = tileset["crs"]
+                )
+            )
+        return tilesets
