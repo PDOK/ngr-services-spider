@@ -10,7 +10,9 @@ spider_output=/output_dir/$(basename "$output_file")
 
 cat <<EOF > /tmp/sorting-rules.json
 [
-  { "index": 0, "names": ["opentopo+"], "types": ["OGC:WMTS"] },
+  { "index": 0, "names": ["tiles$"], "types": ["OGC:API tiles"] },
+  { "index": 5, "names": ["features$"], "types": ["OGC:API features"] },
+  { "index": 9, "names": ["opentopo+"], "types": ["OGC:WMTS"] },
   { "index": 10, "names": ["^actueel_orthohr$"], "types": ["OGC:WMTS"] },
   { "index": 11, "names": ["^actueel_ortho25$"], "types": ["OGC:WMTS"] },
   { "index": 12, "names": ["^actueel_ortho25ir$"], "types": ["OGC:WMTS"] },
@@ -40,7 +42,7 @@ if [[ $nr_of_services != "-" ]];then
   nr_svc_flag="-n ${nr_of_services}"
 fi
 
-docker run -v "/${output_dir}:/output_dir" -v /tmp:/tmp pdok/ngr-services-spider layers $nr_svc_flag --snake-case -s /tmp/sorting-rules.json -m flat -p OGC:WMS,OGC:WFS,OGC:WCS,OGC:WMTS "$spider_output" --jq-filter '.layers[] |= with_entries(
+docker run -v "/${output_dir}:/output_dir" -v /tmp:/tmp "pdok/ngr-services-spider:0.6.3" layers $nr_svc_flag --snake-case -s /tmp/sorting-rules.json -m flat -p "OGC:WMS,OGC:WFS,OGC:WCS,OGC:WMTS,OGC:API tiles,OGC:API features" "$spider_output" --jq-filter '.layers[] |= with_entries(
   if .key == "service_protocol" then 
     .value = (.value | split(":")[1] | ascii_downcase) | .key = "service_type" 
   elif .key == "service_metadata_id" then 
@@ -49,6 +51,8 @@ docker run -v "/${output_dir}:/output_dir" -v /tmp:/tmp pdok/ngr-services-spider
     .key = "dataset_md_id" 
   elif .key == "styles" then
     .value = (.value | map(del(.legend_url)))
+  elif .key == "service_url" and (.value | test("/tiles")) then
+      .value = (.value | split("/tiles")[0])
   else 
     (.) 
   end
