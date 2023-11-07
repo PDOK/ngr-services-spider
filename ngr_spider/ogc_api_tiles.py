@@ -72,7 +72,6 @@ class TileMatrixSets:
 # TODO use async methods
 class OGCApiTiles:
     service_url: str
-    service_type: str
 
     service_desc: ServiceDesc
     data: Data

@@ -94,7 +94,6 @@ class OatLayer(Layer):
     styles: list[VectorTileStyle]
     tiles: list[OatTiles]
 
-
 @dataclasses.dataclass
 class WmtsLayer(Layer):
     styles: list[Style]
@@ -326,7 +325,6 @@ class OatService(Service):
 @dataclasses.dataclass(kw_only=True)
 class OafService(Service):
     featuretypes: list[Layer]
-    output_formats: str
     protocol: str = OAF_PROTOCOL
 
 
