@@ -77,20 +77,20 @@ class OGCApiFeatures:
 
     # TODO Get correct info for featuretypes info when available
     def get_featuretypes(self):
-        featuretypes = []
-        for featuretype in self.data.get_collections():
-            collection_name: str = featuretype["id"]
-            collection_title: str = featuretype["title"]
-            collection_abstract: str = featuretype["description"]
-            featuretypes.append(
-                Layer(
-                    collection_name,
-                    collection_title,
-                    collection_abstract,
-                    "",
-                )
+        collection_list = []
+        collections = self.data.get_collections()
+        for collection in collections:
+            collection_name: str = collection.id
+            collection_title: str = collection.title
+            collection_abstract: str = collection.description
+            featuretype = Layer(
+                collection_name,
+                collection_title,
+                collection_abstract,
+                "",
             )
-        return featuretypes
+            collection_list.append(featuretype)
+        return collection_list
 
     def _load_landing_page(self, service_url: str):
         response = requests.get(service_url)
