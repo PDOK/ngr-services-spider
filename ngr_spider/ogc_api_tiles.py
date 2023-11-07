@@ -117,7 +117,7 @@ class OGCApiTiles:
                     self.data = Data(link["href"])
                 elif link["rel"].endswith('tilesets-vector'):
                     self.tiles = Tiles(link["href"])
-                elif link["rel"] == "tileMatrixSets" or link["rel"].endswith('tiling-schemes'):
+                elif link["rel"].endswith('tiling-schemes'):
                     self.tile_matrix_sets = TileMatrixSets(link["href"])
             title = response_body_data["title"]
             self.title = title if title else ""
