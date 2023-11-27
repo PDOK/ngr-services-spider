@@ -82,6 +82,7 @@ class WmsLayer(Layer):
 class OatTileSet():
     tileset_id: str
     tileset_crs: str
+    tileset_zoomlevel: int
 
 @dataclasses.dataclass
 class OatTiles():
