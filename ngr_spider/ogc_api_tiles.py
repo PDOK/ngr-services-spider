@@ -160,12 +160,12 @@ class OGCApiTiles:
         tilesets_json = self.tiles.json["tilesets"]
         for tileset in tilesets_json:
             tileset_url = self.get_self_link(tileset['links'])
-            tileset_zoom = self.get_zoomlevel(tileset_url)
+            tileset_max_zoomlevel = self.get_zoomlevel(tileset_url)
             tilesets.append(
                 OatTileSet(
                     tileset_id = tileset["tileMatrixSetId"],
                     tileset_crs = tileset["crs"],
-                    tileset_zoomlevel = tileset_zoom
+                    tileset_max_zoomlevel = tileset_max_zoomlevel
                 )
             )
         return tilesets
