@@ -278,7 +278,8 @@ def get_oaf_service(
 ) -> Union[OafService, ServiceError]:
     try:
         url = service_record.service_url
-        md_id = service_record.metadata_id
+        md_id = service_record.metadata_id or ""
+        ds_md_id = service_record.dataset_metadata_id or ""
         LOGGER.info(f"{md_id} - {url}")
         if "://secure" in url:
             # this is a secure layer not for the general public: ignore
@@ -286,17 +287,19 @@ def get_oaf_service(
         oaf = OGCApiFeatures(url)
         title = oaf.title or oaf.service_desc.get_info().title or ""
         description = oaf.description or oaf.service_desc.get_info().description or ""
-        keywords = oaf.service_desc.get_tags() or []
+
+        featuretypes=oaf.get_featuretypes()
+        for featuretype in featuretypes:
+            featuretype.dataset_metadata_id = service_record.dataset_metadata_id or ""
 
         return OafService(
             title=title,
             abstract=description,
             metadata_id=md_id,
             url=url,
-            output_formats=oaf.service_desc.get_output_format(),
-            keywords=keywords,
-            dataset_metadata_id=oaf.service_desc.get_dataset_metadata_id(),
             featuretypes=oaf.get_featuretypes(),
+            keywords=oaf.service_desc.get_tags(),
+            dataset_metadata_id=ds_md_id,
         )
     except requests.exceptions.HTTPError as e:
         LOGGER.error(f"md-identifier: {md_id} - {e}")
