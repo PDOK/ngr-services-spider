@@ -158,10 +158,29 @@ class OGCApiTiles:
         tilesets: list[OatTileSet] = []
         tilesets_json = self.tiles.json["tilesets"]
         for tileset in tilesets_json:
+            tileset_url = self.get_self_link(tileset['links'])
+            tileset_max_zoomlevel = self.get_zoomlevel(tileset_url)
             tilesets.append(
                 OatTileSet(
                     tileset_id = tileset["tileMatrixSetId"],
-                    tileset_crs = tileset["crs"]
+                    tileset_crs = tileset["crs"],
+                    tileset_max_zoomlevel = tileset_max_zoomlevel
                 )
             )
         return tilesets
+    
+    def get_self_link(self, links):
+        for link in links:
+            if link.get('rel') == 'self':
+                return link.get('href')
+        return links[0].get('href')
+    
+    def get_zoomlevel(self, tileset_url):
+        with urllib.request.urlopen(tileset_url) as url:
+            tileset_info = json.load(url)
+        tile_matrix_limits = tileset_info.get('tileMatrixSetLimits', [])
+        max_tile_matrix_zoom = max(
+                    (int(limit.get('tileMatrix')) for limit in tile_matrix_limits),
+                    default=None
+                )
+        return max_tile_matrix_zoom
