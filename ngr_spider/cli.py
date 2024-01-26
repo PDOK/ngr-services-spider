@@ -70,6 +70,7 @@ def main_services(args):
     if protocols:
         protocol_list = protocols.split(",")
 
+    LOGGER.info("main_services start.")
     if not show_warnings:
         cm = warnings.catch_warnings()
         warnings.simplefilter("ignore")
@@ -119,6 +120,8 @@ def main_services(args):
         content = get_output(pretty, yaml_output, config, no_updated, jq_filter)
         write_output(output_file, az_conn_string, az_container, yaml_output, content)
 
+        LOGGER.info("main_services end.")
+
         LOGGER.info(f"output written to {output_file}")
 
 
@@ -142,6 +145,8 @@ def main_layers(args):
     csw_url = args.csw_url
     setup_logger(log_level)
     protocol_list = PROTOCOLS
+
+    LOGGER.info("main_layers start.")
 
     csw_client = CSWClient(csw_url)
 
@@ -244,6 +249,8 @@ def main_layers(args):
             LOGGER.info(f"failed to index {len(service_errors)} services")
             message = "\n".join(service_errors_string)
             LOGGER.info(f"failed service urls:\n{message}")
+
+        LOGGER.info("main_layers end.")
         LOGGER.info(f"output written to {output_file}")
 
 
