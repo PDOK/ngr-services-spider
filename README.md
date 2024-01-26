@@ -103,3 +103,4 @@ When running the `layers` command in flat mode (`--mode flat`), it is possible t
   { "index": 60, "names": ["ahn3+"], "types": ["OGC:WMTS"] }
 ]
 ```
+
