@@ -36,7 +36,9 @@ options:
 1. To generate a list of layers per service run the following:
 
 ```sh
-ngr-spider layers -p 'OGC:WMS,OGC:WMTS' -m services pdok-services.json
+ngr-spider layers -p 'OGC:WMS,OGC:WMTS' pdok-services.json
+ngr-spider services -p 'OGC:WMS,OGC:WMTS' pdok-services.json
+
 ```
 
 ## Development
