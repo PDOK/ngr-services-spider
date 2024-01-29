@@ -56,11 +56,7 @@ class CSWClient:
 
                 records = [CswServiceRecord(rec[1].xml) for rec in csw.records.items()]
                 result.extend(records)
-                if (
-                    maxresults != 0 and len(result) >= maxresults
-                ):  # break only early when maxresults set
-                    break
-                if csw.results["nextrecord"] != 0:
+                if csw.results["nextrecord"] != 0 and (maxresults == 0 or len(result) < maxresults):
                     start = csw.results["nextrecord"]
                     continue
                 result_out: list[CswServiceRecord] = result
@@ -75,7 +71,7 @@ class CSWClient:
         max_results: int = 0,
         no_filter: bool = False,
     ) -> list[CswServiceRecord]:
-        protocol_key = "protocol"
+        protocol_key = "OnlineResourceType"
         if (
             protocol == OAT_PROTOCOL
         ):  # required since NGR does not support OGC API TILES as a seperate protocol
