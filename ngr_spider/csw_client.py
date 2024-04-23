@@ -32,7 +32,6 @@ class CSWClient:
         self, query: str, maxresults: int = 0, no_filter: bool = False
     ) -> list[CswServiceRecord]:
         csw = CatalogueServiceWeb(self.csw_url)
-        print(query)
         while True:
             result: list[CswServiceRecord] = []
             start = 1
