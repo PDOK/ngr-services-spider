@@ -32,7 +32,6 @@ class CSWClient:
         self, query: str, maxresults: int = 0, no_filter: bool = False
     ) -> list[CswServiceRecord]:
         csw = CatalogueServiceWeb(self.csw_url)
-
         while True:
             result: list[CswServiceRecord] = []
             start = 1
@@ -49,14 +48,15 @@ class CSWClient:
                 )
                 if start == 1:
                     matched = csw.results["matches"]
-                    LOGGER.info("Number of matched servcies before filtering: " + str(matched))
+                    LOGGER.info("Number of matched services before filtering: " + str(matched))
                 elif matched != csw.results["matches"]:
-                    LOGGER.info("Number of matched servcies has been changed: old = " + str(matched) + ", new = " + str(csw.results["matches"]))
+                    LOGGER.info("Number of matched services has been changed: old = " + str(matched) + ", new = " + str(csw.results["matches"]))
                     break # inner loop
 
                 records = [CswServiceRecord(rec[1].xml) for rec in csw.records.items()]
                 result.extend(records)
-                if csw.results["nextrecord"] != 0 and (maxresults == 0 or len(result) < maxresults):
+                # extra check op aantal records groter dan nextrecord vanwege bug in GeoNetwork
+                if (csw.results["nextrecord"] != 0 and csw.results["nextrecord"] < csw.results["matches"]) and (maxresults == 0 or len(result) < maxresults):
                     start = csw.results["nextrecord"]
                     continue
                 result_out: list[CswServiceRecord] = result
