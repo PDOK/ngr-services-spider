@@ -72,11 +72,6 @@ class CSWClient:
         no_filter: bool = False,
     ) -> list[CswServiceRecord]:
         protocol_key = "OnlineResourceType"
-        if (
-            protocol == OAT_PROTOCOL
-        ):  # required since NGR does not support OGC API TILES as a seperate protocol
-            protocol_key = "anyText"
-
         query = f"type='service' AND organisationName='{svc_owner}' AND {protocol_key}='{protocol}'"
         records = self._get_csw_records(query, max_results, no_filter)
         LOGGER.debug(f"query: {query}")
