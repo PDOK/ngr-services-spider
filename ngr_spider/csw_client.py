@@ -9,7 +9,6 @@ from .models import CswDatasetRecord, CswServiceRecord
 
 LOGGER = logging.getLogger(__name__)
 
-
 class CSWClient:
     def __init__(self, csw_url):
         self.csw_url = csw_url
@@ -33,32 +32,37 @@ class CSWClient:
         self, query: str, maxresults: int = 0, no_filter: bool = False
     ) -> list[CswServiceRecord]:
         csw = CatalogueServiceWeb(self.csw_url)
-        result: list[CswServiceRecord] = []
-        start = 1
-        maxrecord = maxresults if (maxresults < 100 and maxresults != 0) else 100
-
         while True:
-            csw.getrecords2(
-                maxrecords=maxrecord,
-                cql=query,
-                startposition=start,
-                esn="full",
-                outputschema="http://www.isotc211.org/2005/gmd",
-            )
-            records = [CswServiceRecord(rec[1].xml) for rec in csw.records.items()]
-            result.extend(records)
-            if (
-                maxresults != 0 and len(result) >= maxresults
-            ):  # break only early when maxresults set
-                break
-            if csw.results["nextrecord"] != 0:
-                start = csw.results["nextrecord"]
-                continue
-            break
-        result_out: list[CswServiceRecord] = result
-        if not no_filter:
-            result_out = self._filter_service_records(result)
-        return sorted(result_out, key=lambda x: x.title)
+            result: list[CswServiceRecord] = []
+            start = 1
+            maxrecord = maxresults if (maxresults < 100 and maxresults != 0) else 100
+            matched = 0
+            while True:
+                csw.getrecords2(
+                    maxrecords=maxrecord,
+                    cql=query,
+                    startposition=start,
+                    esn="full",
+                    outputschema="http://www.isotc211.org/2005/gmd",
+                    sortby="CreationDate:A"
+                )
+                if start == 1:
+                    matched = csw.results["matches"]
+                    LOGGER.info("Number of matched services before filtering: " + str(matched))
+                elif matched != csw.results["matches"]:
+                    LOGGER.info("Number of matched services has been changed: old = " + str(matched) + ", new = " + str(csw.results["matches"]))
+                    break # inner loop
+
+                records = [CswServiceRecord(rec[1].xml) for rec in csw.records.items()]
+                result.extend(records)
+                # extra check op aantal records groter dan nextrecord vanwege bug in GeoNetwork
+                if (csw.results["nextrecord"] != 0 and csw.results["nextrecord"] < csw.results["matches"]) and (maxresults == 0 or len(result) < maxresults):
+                    start = csw.results["nextrecord"]
+                    continue
+                result_out: list[CswServiceRecord] = result
+                if not no_filter:
+                    result_out = self._filter_service_records(result)
+                return sorted(result_out, key=lambda x: x.title)
 
     def _get_csw_records_by_protocol(
         self,
@@ -67,12 +71,7 @@ class CSWClient:
         max_results: int = 0,
         no_filter: bool = False,
     ) -> list[CswServiceRecord]:
-        protocol_key = "protocol"
-        if (
-            protocol == OAT_PROTOCOL
-        ):  # required since NGR does not support OGC API TILES as a seperate protocol
-            protocol_key = "anyText"
-
+        protocol_key = "OnlineResourceType"
         query = f"type='service' AND organisationName='{svc_owner}' AND {protocol_key}='{protocol}'"
         records = self._get_csw_records(query, max_results, no_filter)
         LOGGER.debug(f"query: {query}")
