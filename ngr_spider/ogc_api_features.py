@@ -75,8 +75,7 @@ class OGCApiFeatures:
         self.service_url = url
         self._load_landing_page(url)
 
-    # TODO Get correct info for featuretypes info when available
-    def get_featuretypes(self):
+    def get_featuretypes(self, dataset_metadata_id: str):
         collection_list = []
         collections = self.data.get_collections()
         for collection in collections:
@@ -87,7 +86,7 @@ class OGCApiFeatures:
                 collection_name,
                 collection_title,
                 collection_abstract,
-                "",
+                dataset_metadata_id,
             )
             collection_list.append(featuretype)
         return collection_list
