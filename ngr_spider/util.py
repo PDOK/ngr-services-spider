@@ -272,13 +272,13 @@ def get_atom_service(
     return AtomService(service_record.service_url, r.text)
 
 
-# TODO check correctness when test data is available, retrieve data from correct source/location
 def get_oaf_service(
     service_record: CswServiceRecord,
 ) -> Union[OafService, ServiceError]:
     try:
         url = service_record.service_url
-        md_id = service_record.metadata_id
+        md_id = service_record.metadata_id or ""
+        ds_md_id = service_record.dataset_metadata_id or ""
         LOGGER.info(f"{md_id} - {url}")
         if "://secure" in url:
             # this is a secure layer not for the general public: ignore
@@ -286,17 +286,19 @@ def get_oaf_service(
         oaf = OGCApiFeatures(url)
         title = oaf.title or oaf.service_desc.get_info().title or ""
         description = oaf.description or oaf.service_desc.get_info().description or ""
-        keywords = oaf.service_desc.get_tags() or []
+
+        featuretypes=oaf.get_featuretypes(ds_md_id)
+        for featuretype in featuretypes:
+            featuretype.dataset_metadata_id = service_record.dataset_metadata_id or ""
 
         return OafService(
             title=title,
             abstract=description,
             metadata_id=md_id,
             url=url,
-            output_formats=oaf.service_desc.get_output_format(),
-            keywords=keywords,
-            dataset_metadata_id=oaf.service_desc.get_dataset_metadata_id(),
-            featuretypes=oaf.get_featuretypes(),
+            featuretypes=oaf.get_featuretypes(ds_md_id),
+            keywords=oaf.service_desc.get_tags(),
+            dataset_metadata_id=ds_md_id,
         )
     except requests.exceptions.HTTPError as e:
         LOGGER.error(f"md-identifier: {md_id} - {e}")
@@ -511,7 +513,6 @@ def flatten_service(service):
 
     protocol = service["protocol"]
 
-    # TODO? do we need specific functions for flattening OGC:API tiles/features?
     if protocol == "INSPIRE Atom":
         raise NotImplementedError(  # TODO: move check to argument parse function
             "Flat output for INSPIRE Atom services has not been implemented (yet)."

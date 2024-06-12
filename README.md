@@ -36,10 +36,12 @@ options:
 1. To generate a list of layers per service run the following:
 
 ```sh
-ngr-spider layers -p 'OGC:WMS,OGC:WMTS' pdok-services.json
-ngr-spider services -p 'OGC:WMS,OGC:WMTS' pdok-services.json
+ngr-spider layers -p 'OGC:WMS,OGC:WMTS,OGC:API features' pdok-services.json
+ngr-spider services -p 'OGC:WMS,OGC:WMTS,OGC:API features' pdok-services.json
 
 ```
+
+Note: you may need to install pyproj manually (`pip install pyproj`) on some systems.
 
 ## Development
 
