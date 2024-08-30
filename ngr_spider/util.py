@@ -7,6 +7,7 @@ import json
 import logging
 import re
 import sys
+import time
 from concurrent.futures import ThreadPoolExecutor
 from types import MethodType
 from typing import Union
@@ -174,6 +175,40 @@ def get_service(service_record: CswServiceRecord) -> Union[Service, ServiceError
 def empty_string_if_none(input_str):
     return input_str if input_str is not None else ""
 
+def retrieve_generic_service(service_record, service_type: str):
+    found = False
+    retries = 3
+    message = ""
+    LOGGER.info(f"{service_record.metadata_id} - {service_record.service_url}")
+    while not found and retries > 0:
+        service_temp = None
+        try:
+            if service_type == "wms":
+                service_temp = WebMapService(service_record.service_url, version="1.3.0")
+            elif service_type == "wfs":
+                service_temp = WebFeatureService(service_record.service_url, version="2.0.0")
+            elif service_type == "wcs":
+                service_temp = WebCoverageService(service_record.service_url, version="1.1.0")
+            elif service_type == "wmts":
+                service_temp = WebMapTileService(service_record.service_url)
+            elif service_type == "atom":
+                pass
+            elif service_type == "oat":
+                service_temp = OGCApiTiles(service_record.service_url)
+            elif service_type == "oaf":
+                service_temp = OGCApiFeatures(service_record.service_url)
+            else:
+                pass
+            # The constructor initiates the http(s) connection
+            # If it doesn't except, we are good to go
+            return service_temp, None
+        except requests.exceptions.HTTPError as e:
+            message = f"md-identifier: {service_record.metadata_id} - {e}"
+        except Exception:
+            message = f"exception while retrieving {service_type} cap for service md-identifier: {service_record.metadata_id}, url: {service_record.service_url}"
+        time.sleep(5)
+        retries -= 1
+    return None, message
 
 def get_wcs_service(
     service_record: CswServiceRecord,
@@ -189,34 +224,19 @@ def get_wcs_service(
     def OWS(cls, tag):
         return "{http://www.opengis.net/ows/1.1}" + tag
 
-    try:
-        url = service_record.service_url
-        md_id = service_record.metadata_id
-        LOGGER.info(f"{md_id} - {url}")
-        # monkeypatch OWS method to fix namespace issue
-        # owslib is using a different namespace url than mapserver is in cap doc
-        wcs110.Namespaces_1_1_0.OWS = MethodType(OWS, wcs110.Namespaces_1_1_0)
-        # use version=1.1.0 since that cap doc list title and abstract for coverage
-        wcs = WebCoverageService(url, version="1.1.0")
-        # getcoverage_op = next(
-        #     (x for x in wcs.operations if x.name == "GetCoverage"), None
-        # )
-        return WcsService(
-            title=empty_string_if_none(wcs.identification.title),
-            abstract=empty_string_if_none(wcs.identification.abstract),
-            metadata_id=md_id,
-            url=service_record.service_url,
-            coverages=list(map(convert_layer, list(wcs.contents))),
-            keywords=wcs.identification.keywords,
-            dataset_metadata_id=service_record.dataset_metadata_id,
-        )
-    except requests.exceptions.HTTPError as e:
-        LOGGER.error(f"md_id: {md_id} - {e}")
-    except Exception:
-        message = f"exception while retrieving WCS cap for service md-identifier: {md_id}, url: {url}"
-        LOGGER.exception(message)
-    return ServiceError(service_record.service_url, service_record.metadata_id)
-
+    wcs, message = retrieve_generic_service(service_record, "wcs")
+    if wcs is None:
+        LOGGER.error(message)
+        return ServiceError(service_record.service_url, service_record.metadata_id)
+    return WcsService(
+        title=empty_string_if_none(wcs.identification.title),
+        abstract=empty_string_if_none(wcs.identification.abstract),
+        metadata_id=service_record.metadata_id,
+        url=service_record.service_url,
+        coverages=list(map(convert_layer, list(wcs.contents))),
+        keywords=wcs.identification.keywords,
+        dataset_metadata_id=service_record.dataset_metadata_id,
+    )
 
 def get_wfs_service(
     service_record: CswServiceRecord,
@@ -229,31 +249,26 @@ def get_wfs_service(
             dataset_metadata_id=service_record.dataset_metadata_id,
         )
 
-    try:
-        url = service_record.service_url
-        md_id = service_record.metadata_id
-        LOGGER.info(f"{md_id} - {url}")
-        wfs = WebFeatureService(url, version="2.0.0")
-        getfeature_op = next(
-            (x for x in wfs.operations if x.name == "GetFeature"), None
-        )
-        return WfsService(
-            title=empty_string_if_none(wfs.identification.title),
-            abstract=empty_string_if_none(wfs.identification.abstract),
-            metadata_id=md_id,
-            url=service_record.service_url,
-            output_formats=getfeature_op.parameters["outputFormat"]["values"],  # type: ignore
-            featuretypes=list(map(convert_layer, list(wfs.contents))),
-            keywords=wfs.identification.keywords,
-            dataset_metadata_id=service_record.dataset_metadata_id,
-        )
-    except requests.exceptions.HTTPError as e:
-        LOGGER.error(f"md-identifier: {md_id} - {e}")
-    except Exception:
-        message = f"exception while retrieving WFS cap for service md-identifier: {md_id}, url: {url}"
-        LOGGER.exception(message)
-    return ServiceError(service_record.service_url, service_record.metadata_id)
+    wfs, message = retrieve_generic_service(service_record, "wfs")
+    if wfs is None:
+        LOGGER.error(message)
+        return ServiceError(service_record.service_url, service_record.metadata_id)
 
+    getfeature_op = next(
+        (x for x in wfs.operations if x.name == "GetFeature"), None
+    )
+    md_id = service_record.metadata_id
+
+    return WfsService(
+        title=empty_string_if_none(wfs.identification.title),
+        abstract=empty_string_if_none(wfs.identification.abstract),
+        metadata_id=md_id,
+        url=service_record.service_url,
+        output_formats=getfeature_op.parameters["outputFormat"]["values"],  # type: ignore
+        featuretypes=list(map(convert_layer, list(wfs.contents))),
+        keywords=wfs.identification.keywords,
+        dataset_metadata_id=service_record.dataset_metadata_id,
+    )
 
 def get_md_id_from_url(url):
     LOGGER.debug(f"get_md_id_from_url url: {url}")
@@ -275,76 +290,67 @@ def get_atom_service(
 def get_oaf_service(
     service_record: CswServiceRecord,
 ) -> Union[OafService, ServiceError]:
-    try:
-        url = service_record.service_url
-        md_id = service_record.metadata_id or ""
-        ds_md_id = service_record.dataset_metadata_id or ""
-        LOGGER.info(f"{md_id} - {url}")
-        if "://secure" in url:
-            # this is a secure layer not for the general public: ignore
-            return service_record
-        oaf = OGCApiFeatures(url)
-        title = oaf.title or oaf.service_desc.get_info().title or ""
-        description = oaf.description or oaf.service_desc.get_info().description or ""
+    if "://secure" in service_record.service_url:
+        # this is a secure layer not for the general public: ignore
+        return service_record
 
-        featuretypes=oaf.get_featuretypes(ds_md_id)
-        for featuretype in featuretypes:
-            featuretype.dataset_metadata_id = service_record.dataset_metadata_id or ""
+    oaf, message = retrieve_generic_service(service_record, "oaf")
+    if oaf is None:
+        LOGGER.error(message)
+        return ServiceError(service_record.service_url, service_record.metadata_id)
 
-        return OafService(
-            title=title,
-            abstract=description,
-            metadata_id=md_id,
-            url=url,
-            featuretypes=oaf.get_featuretypes(ds_md_id),
-            keywords=oaf.service_desc.get_tags(),
-            dataset_metadata_id=ds_md_id,
-        )
-    except requests.exceptions.HTTPError as e:
-        LOGGER.error(f"md-identifier: {md_id} - {e}")
-    except Exception:
-        message = f"unexpected error occured while retrieving cap doc, md-identifier {md_id}, url: {url}"
-        LOGGER.exception(message)
-    return ServiceError(service_record.service_url, service_record.metadata_id)
+    title = oaf.title or oaf.service_desc.get_info().title or ""
+    description = oaf.description or oaf.service_desc.get_info().description or ""
+    md_id = service_record.metadata_id or ""
+    ds_md_id = service_record.dataset_metadata_id or ""
+
+    featuretypes=oaf.get_featuretypes(ds_md_id)
+    for featuretype in featuretypes:
+        featuretype.dataset_metadata_id = service_record.dataset_metadata_id or ""
+
+    return OafService(
+        title=title,
+        abstract=description,
+        metadata_id=md_id,
+        url=service_record.service_url,
+        featuretypes=oaf.get_featuretypes(ds_md_id),
+        keywords=oaf.service_desc.get_tags(),
+        dataset_metadata_id=ds_md_id,
+    )
 
 
 def get_oat_service(
     service_record: CswServiceRecord,
 ) -> Union[OatService, ServiceError]:
-    try:
-        url = service_record.service_url
-        md_id = service_record.metadata_id
-        LOGGER.info(f"{md_id} - {url}")
-        if "://secure" in url:
-            # this is a secure layer not for the general public: ignore
-            return service_record
-        oat = OGCApiTiles(url)
-        title = oat.title or oat.service_desc.get_info().title or ""
-        description = oat.description or oat.service_desc.get_info().description or ""
+    if "://secure" in service_record.service_url:
+        # this is a secure layer not for the general public: ignore
+        return service_record
 
-        layers = oat.get_layers()
+    oat, message = retrieve_generic_service(service_record, "oat")
+    if oat is None:
+        LOGGER.error(message)
+        return ServiceError(service_record.service_url, service_record.metadata_id)
 
-        for layer in layers:
-            layer.dataset_metadata_id = service_record.dataset_metadata_id
+    title = oat.title or oat.service_desc.get_info().title or ""
+    description = oat.description or oat.service_desc.get_info().description or ""
 
-        service_url = oat.service_desc.get_tile_request_url()
+    layers = oat.get_layers()
 
-        return OatService(
-            # http://docs.ogc.org/DRAFTS/19-072.html#rc_landing-page-section
-            title=title,
-            abstract=description,
-            metadata_id=md_id,
-            url=service_url,
-            layers=layers,
-            keywords=oat.service_desc.get_tags(),
-            dataset_metadata_id=service_record.dataset_metadata_id,
-        )
-    except requests.exceptions.HTTPError as e:
-        LOGGER.error(f"md-identifier: {md_id} - {e}")
-    except Exception:
-        message = f"unexpected error occured while retrieving cap doc, md-identifier {md_id}, url: {url}"
-        LOGGER.exception(message)
-    return ServiceError(service_record.service_url, service_record.metadata_id)
+    for layer in layers:
+        layer.dataset_metadata_id = service_record.dataset_metadata_id
+
+    service_url = oat.service_desc.get_tile_request_url()
+
+    return OatService(
+        # http://docs.ogc.org/DRAFTS/19-072.html#rc_landing-page-section
+        title=title,
+        abstract=description,
+        metadata_id=service_record.metadata_id,
+        url=service_url,
+        layers=layers,
+        keywords=oat.service_desc.get_tags(),
+        dataset_metadata_id=service_record.dataset_metadata_id,
+    )
 
 
 def get_wms_service(
@@ -387,32 +393,28 @@ def get_wms_service(
             dataset_metadata_id=dataset_md_id,
         )
 
-    try:
-        if "://secure" in service_record.service_url:
-            # this is a secure layer not for the general public: ignore
-            # TODO: apply filtering elswhere
-            return ServiceError(service_record.service_url, service_record.metadata_id)
-        LOGGER.info(f"{service_record.metadata_id} - {service_record.service_url}")
-        wms = WebMapService(service_record.service_url, version="1.3.0")
-        getmap_op = next((x for x in wms.operations if x.name == "GetMap"), None)
-        layers = list(wms.contents)
-        return WmsService(
-            title=empty_string_if_none(wms.identification.title),
-            abstract=empty_string_if_none(wms.identification.abstract),
-            keywords=wms.identification.keywords,
-            layers=list(map(convert_layer, layers)),
-            imgformats=",".join(getmap_op.formatOptions),  # type: ignore
-            metadata_id=service_record.metadata_id,
-            url=service_record.service_url,
-            dataset_metadata_id=service_record.dataset_metadata_id,
-        )
-    except requests.exceptions.HTTPError as e:
-        LOGGER.error(f"md-identifier: {service_record.metadata_id} - {e}")
-    except Exception:
-        message = f"exception while retrieving WMS cap for service md-identifier: {service_record.metadata_id}, url: {service_record.service_url}"
-        LOGGER.exception(message)
-    return ServiceError(service_record.service_url, service_record.metadata_id)
+    if "://secure" in service_record.service_url:
+        # this is a secure layer not for the general public: ignore
+        # TODO: apply filtering elswhere
+        return ServiceError(service_record.service_url, service_record.metadata_id)
 
+    wms, message = retrieve_generic_service(service_record, "wms")
+    if wms is None:
+        LOGGER.error(message)
+        return ServiceError(service_record.service_url, service_record.metadata_id)
+
+    getmap_op = next((x for x in wms.operations if x.name == "GetMap"), None)
+    layers = list(wms.contents)
+    return WmsService(
+        title=empty_string_if_none(wms.identification.title),
+        abstract=empty_string_if_none(wms.identification.abstract),
+        keywords=wms.identification.keywords,
+        layers=list(map(convert_layer, layers)),
+        imgformats=",".join(getmap_op.formatOptions),  # type: ignore
+        metadata_id=service_record.metadata_id,
+        url=service_record.service_url,
+        dataset_metadata_id=service_record.dataset_metadata_id,
+    )
 
 def get_wmts_service(
     service_record: CswServiceRecord,
@@ -439,30 +441,24 @@ def get_wmts_service(
             dataset_metadata_id=service_record.dataset_metadata_id,
         )
 
-    try:
-        url = service_record.service_url
-        md_id = service_record.metadata_id
-        LOGGER.info(f"{md_id} - {url}")
-        if "://secure" in url:
-            # this is a secure layer not for the general public: ignore
-            return service_record
-        wmts = WebMapTileService(url)
-        return WmtsService(
-            title=empty_string_if_none(wmts.identification.title),
-            abstract=empty_string_if_none(wmts.identification.abstract),
-            metadata_id=md_id,
-            url=url,
-            layers=list(map(convert_layer, list(wmts.contents))),
-            keywords=wmts.identification.keywords,
-            dataset_metadata_id=service_record.dataset_metadata_id,
-        )
+    if "://secure" in service_record.service_url:
+        # this is a secure layer not for the general public: ignore
+        return service_record
 
-    except requests.exceptions.HTTPError as e:
-        LOGGER.error(f"md-identifier: {md_id} - {e}")
-    except Exception:
-        message = f"unexpected error occured while retrieving cap doc, md-identifier {md_id}, url: {url}"
-        LOGGER.exception(message)
-    return ServiceError(service_record.service_url, service_record.metadata_id)
+    wmts, message = retrieve_generic_service(service_record, "wmts")
+    if wmts is None:
+        LOGGER.error(message)
+        return ServiceError(service_record.service_url, service_record.metadata_id)
+
+    return WmtsService(
+        title=empty_string_if_none(wmts.identification.title),
+        abstract=empty_string_if_none(wmts.identification.abstract),
+        metadata_id=service_record.metadata_id,
+        url=service_record.service_url,
+        layers=list(map(convert_layer, list(wmts.contents))),
+        keywords=wmts.identification.keywords,
+        dataset_metadata_id=service_record.dataset_metadata_id,
+    )
 
 
 def flatten_service(service):
