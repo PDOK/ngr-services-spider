@@ -8,6 +8,14 @@
 
 CLI (command line interface) application to retrieve list of services and datasets in a simple JSON format from [nationaalgeoregister.nl](https://nationaalgeoregister.nl/) (NGR), leveraging the NGR [CSW service](https://nationaalgeoregister.nl/geonetwork/srv/dut/csw?service=CSW&request=GetCapabilities).
 
+## Users
+
+Known users of this spider are:
+- [PDOK](https://pdok.nl), used to provision several geo viewers
+- [PDOK services QGIS plugin](https://github.com/rduivenvoorde/pdokservicesplugin), by rduivenvoorde
+
+## Build and run
+
 To install from source run (from the root this repo):
 
 ```sh
