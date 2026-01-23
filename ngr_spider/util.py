@@ -13,7 +13,7 @@ from types import MethodType
 from typing import Union
 from urllib import parse
 
-import jq
+from jqpy import jq
 import requests
 import yaml
 from azure.storage.blob import BlobClient, ContentSettings
@@ -139,7 +139,12 @@ def join_lists_by_property(list_1, list_2, prop_name):
 async def get_data_asynchronous(results, fun):
     result = []
     with ThreadPoolExecutor(max_workers=10) as executor:
-        loop = asyncio.get_event_loop()
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
         tasks = [
             loop.run_in_executor(
                 executor,
@@ -540,7 +545,11 @@ def sort_flat_layers(layers, rules_path):
 def get_services(
     service_records: list[CswServiceRecord],
 ) -> list[Union[Service, ServiceError]]:
-    loop = asyncio.get_event_loop()
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
     future = asyncio.ensure_future(get_data_asynchronous(service_records, get_service))
     loop.run_until_complete(future)
     services_list: list[Union[Service, ServiceError]] = future.result()
@@ -550,7 +559,11 @@ def get_services(
 def get_csw_datasets(
     client: CSWClient, dataset_ids: list[str]
 ) -> list[CswDatasetRecord]:
-    loop = asyncio.get_event_loop()
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
     future = asyncio.ensure_future(
         get_data_asynchronous(dataset_ids, client.get_dataset_metadata)
     )
